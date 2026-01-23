@@ -43,6 +43,20 @@ cd .\bin\Release\net9.0\win-x64\publish
 ```powershell
 Invoke-RestMethod http://localhost:5155/v1/models
 ```
+Beispielausgabe:
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "google-claude-4.5-sonnet",
+      "object": "model",
+      "created": 1769121744,
+      "owned_by": "nele"
+    }
+  ]
+}
+```
 
 ### Chat Completions (sync)
 ```powershell
@@ -57,6 +71,38 @@ $body = @{
 Invoke-RestMethod http://localhost:5155/v1/chat/completions `
   -Method Post -ContentType "application/json" -Body $body
 ```
+Antwort anzeigen (komplett + nur Text):
+```powershell
+$response = Invoke-RestMethod http://localhost:5155/v1/chat/completions `
+  -Method Post -ContentType "application/json" -Body $body
+
+$response | ConvertTo-Json -Depth 6
+$response.choices[0].message.content
+```
+Beispielausgabe:
+```json
+{
+  "id": "chatcmpl-0123456789abcdef",
+  "object": "chat.completion",
+  "created": 1769121744,
+  "model": "google-claude-4.5-sonnet",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hallo."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0
+  }
+}
+```
 
 ### Chat Completions (stream)
 ```powershell
@@ -69,6 +115,11 @@ $body = @{
 curl.exe -N http://localhost:5155/v1/chat/completions `
   -H "Content-Type: application/json" -d $body
 ```
+Beispielausgabe (SSE, gekuerzt):
+```text
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk",...}
+data: [DONE]
+```
 
 ### Responses (sync)
 ```powershell
@@ -80,11 +131,50 @@ $body = @{
 Invoke-RestMethod http://localhost:5155/v1/responses `
   -Method Post -ContentType "application/json" -Body $body
 ```
+Antwort anzeigen:
+```powershell
+$response = Invoke-RestMethod http://localhost:5155/v1/responses `
+  -Method Post -ContentType "application/json" -Body $body
+
+$response | ConvertTo-Json -Depth 6
+$response.output_text
+```
+Beispielausgabe:
+```json
+{
+  "id": "resp_0123456789abcdef",
+  "object": "response",
+  "created_at": 1769121744,
+  "model": "google-claude-4.5-sonnet",
+  "status": "completed",
+  "output": [
+    {
+      "id": "msg_0123456789abcdef",
+      "type": "message",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Hallo."
+        }
+      ]
+    }
+  ],
+  "output_text": "Hallo."
+}
+```
 
 ### Audio Transcription
 ```powershell
 curl.exe -X POST http://localhost:5155/v1/audio/transcriptions `
   -F "model=whisper-1" -F "file=@C:\path\audio.mp3"
+```
+Beispielausgabe:
+```json
+{
+  "text": "Transkribierter Text..."
+}
 ```
 
 ### Image Generation
@@ -96,6 +186,17 @@ $body = @{
 
 Invoke-RestMethod http://localhost:5155/v1/images/generations `
   -Method Post -ContentType "application/json" -Body $body
+```
+Beispielausgabe:
+```json
+{
+  "created": 1769121744,
+  "data": [
+    {
+      "url": "https://example.com/generated-image.png"
+    }
+  ]
+}
 ```
 
 ## Hinweise
