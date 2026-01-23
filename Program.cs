@@ -29,7 +29,11 @@ builder.Services.AddHttpClient("Nele", client =>
 
 var app = builder.Build();
 
-app.MapGet("/", () => Results.Text("Nele OpenAI Proxy running."));
+app.MapGet("/", (IConfiguration config) =>
+{
+    var key = GetConfiguredApiKey(config);
+    return Results.Text(string.IsNullOrWhiteSpace(key) ? "API not provided" : "Nele OpenAI Proxy running.");
+});
 
 app.MapGet("/v1/models", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config) =>
 {
@@ -459,6 +463,11 @@ static string? ExtractBearerToken(HttpRequest request, IConfiguration config)
         }
     }
 
+    return GetConfiguredApiKey(config);
+}
+
+static string? GetConfiguredApiKey(IConfiguration config)
+{
     var configKey = config["Nele:ApiKey"];
     if (!string.IsNullOrWhiteSpace(configKey))
     {
