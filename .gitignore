@@ -1,0 +1,11 @@
+# local secrets
+appsettings.Local.json
+
+# build outputs
+bin/
+obj/
+
+# user/ide
+.vs/
+*.user
+*.suo
