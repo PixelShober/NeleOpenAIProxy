@@ -16,6 +16,38 @@ Minimaler C#-Proxy, der OpenAI-kompatible Endpunkte auf die Nele.AI API ueberset
 - Optionaler Default fuer Chat-Modelle via Config
 - Konfiguration wird immer aus dem Ordner der EXE gelesen
 
+## Desktop App (Chat Modus)
+Eine schlanke WPF-App (net9.0) fuer den direkten Zugriff auf Nele AI.
+
+Funktionen:
+- Kompaktes Widget-Fenster mit globalem Hotkey (Default: `Ctrl+Alt+Space`)
+- Dark/Light Mode Toggle oben rechts
+- Chat-Verlauf mit mehreren Konversationen
+- Ordner fuer Chats (Drag & Drop oder Rechtsklick -> Move to folder)
+- Settings-Fenster fuer API-Key, Base-URL, Model-Liste und Hotkey
+
+### Start (Desktop App)
+```powershell
+dotnet build .\NeleOpenAIProxy.sln
+dotnet run --project .\NeleDesktop\NeleDesktop.csproj
+```
+
+### Desktop-Konfiguration
+Die App speichert ihre Daten lokal als JSON:
+- `%AppData%\NeleAIProxy\settings.json`
+- `%AppData%\NeleAIProxy\conversations.json`
+
+Beispiel `settings.json`:
+```json
+{
+  "apiKey": "YOUR_NELE_API_KEY",
+  "baseUrl": "https://api.aieva.io/api:v1/",
+  "selectedModel": "google-claude-4.5-sonnet",
+  "darkMode": true,
+  "hotkey": "Ctrl+Alt+Space"
+}
+```
+
 ## Konfiguration
 Lege `appsettings.Local.json` im gleichen Ordner wie die EXE ab (oder nutze `appsettings.json`).
 
