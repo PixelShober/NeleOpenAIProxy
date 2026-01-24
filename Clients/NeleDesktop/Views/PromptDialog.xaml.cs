@@ -1,23 +1,31 @@
-﻿using System.Windows;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using WpfButton = System.Windows.Controls.Button;
 
 namespace NeleDesktop.Views;
 
 public partial class PromptDialog : Window
 {
-    private PromptDialog(string title, string prompt)
+    private PromptDialog(string title, string prompt, string? initialValue)
     {
         InitializeComponent();
         Title = title;
         PromptText.Text = prompt;
-        Loaded += (_, _) => InputBox.Focus();
+        InputBox.Text = initialValue ?? string.Empty;
+        Loaded += (_, _) =>
+        {
+            InputBox.Focus();
+            InputBox.SelectAll();
+        };
     }
 
     public string ResponseText => InputBox.Text ?? string.Empty;
 
-    public static string? Show(Window owner, string title, string prompt)
+    public static string? Show(Window owner, string title, string prompt, string? initialValue = null)
     {
-        var dialog = new PromptDialog(title, prompt)
+        var dialog = new PromptDialog(title, prompt, initialValue)
         {
             Owner = owner
         };
@@ -42,6 +50,29 @@ public partial class PromptDialog : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source
+            && GetAncestor<WpfButton>(source) is not null)
+        {
+            return;
+        }
+
         DragMove();
     }
+
+    private static T? GetAncestor<T>(DependencyObject current) where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T target)
+            {
+                return target;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
 }
+
+

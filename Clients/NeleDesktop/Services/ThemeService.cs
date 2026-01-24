@@ -1,4 +1,5 @@
 using System;
+using WpfApplication = System.Windows.Application;
 using System.Windows;
 
 namespace NeleDesktop.Services;
@@ -7,7 +8,7 @@ public sealed class ThemeService
 {
     public void ApplyTheme(bool darkMode)
     {
-        if (Application.Current is null)
+        if (WpfApplication.Current is null)
         {
             return;
         }
@@ -17,7 +18,7 @@ public sealed class ThemeService
             Source = new Uri(darkMode ? "Themes/Dark.xaml" : "Themes/Light.xaml", UriKind.Relative)
         };
 
-        Application.Current.Resources.MergedDictionaries.Clear();
-        Application.Current.Resources.MergedDictionaries.Add(dictionary);
+        WpfApplication.Current.Resources.MergedDictionaries.Clear();
+        WpfApplication.Current.Resources.MergedDictionaries.Add(dictionary);
     }
 }

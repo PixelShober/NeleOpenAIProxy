@@ -1,7 +1,10 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using WpfButton = System.Windows.Controls.Button;
 using NeleDesktop.ViewModels;
 
 namespace NeleDesktop.Views;
@@ -49,7 +52,28 @@ public partial class MoveToFolderDialog : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source
+            && GetAncestor<WpfButton>(source) is not null)
+        {
+            return;
+        }
+
         DragMove();
+    }
+
+    private static T? GetAncestor<T>(DependencyObject current) where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T target)
+            {
+                return target;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     public sealed class FolderOption

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,8 @@ namespace NeleDesktop.ViewModels;
 
 public sealed class MainViewModel : ObservableObject
 {
+    private const double ExpandedSidebarWidth = 280;
+
     private readonly AppDataStore _dataStore = new();
     private readonly NeleApiClient _apiClient = new();
     private readonly ThemeService _themeService = new();
@@ -23,6 +26,9 @@ public sealed class MainViewModel : ObservableObject
     private string _inputText = string.Empty;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
+    private bool _isSidebarVisible = true;
+    private double _sidebarWidth = ExpandedSidebarWidth;
+    private ChatConversationViewModel? _temporaryChat;
 
     public MainViewModel()
     {
@@ -30,6 +36,7 @@ public sealed class MainViewModel : ObservableObject
         NewFolderCommand = new RelayCommand(RequestNewFolder);
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, CanSendMessage);
         ToggleThemeCommand = new RelayCommand(ToggleTheme);
+        ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
     }
 
     public event EventHandler? HotkeyChanged;
@@ -40,6 +47,10 @@ public sealed class MainViewModel : ObservableObject
 
     public ObservableCollection<ChatConversationViewModel> RootChats { get; } = new();
 
+    public ObservableCollection<object> ConversationItems { get; } = new();
+
+    public ObservableCollection<string> AvailableModels { get; } = new();
+
     public ICommand NewChatCommand { get; }
 
     public ICommand NewFolderCommand { get; }
@@ -47,6 +58,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand SendMessageCommand { get; }
 
     public ICommand ToggleThemeCommand { get; }
+
+    public ICommand ToggleSidebarCommand { get; }
 
     public AppSettings Settings => _settings;
 
@@ -60,6 +73,7 @@ public sealed class MainViewModel : ObservableObject
                 if (_selectedChat is not null)
                 {
                     _state.ActiveChatId = _selectedChat.Id;
+                    EnsureChatModel(_selectedChat);
                 }
 
                 OnPropertyChanged(nameof(ActiveMessages));
@@ -99,6 +113,26 @@ public sealed class MainViewModel : ObservableObject
         set => SetProperty(ref _statusMessage, value);
     }
 
+    public bool IsSidebarVisible
+    {
+        get => _isSidebarVisible;
+        set
+        {
+            if (SetProperty(ref _isSidebarVisible, value))
+            {
+                SidebarWidth = _isSidebarVisible ? ExpandedSidebarWidth : 0;
+            }
+        }
+    }
+
+    public double SidebarWidth
+    {
+        get => _sidebarWidth;
+        private set => SetProperty(ref _sidebarWidth, value);
+    }
+
+    public bool IsApiKeyMissing => string.IsNullOrWhiteSpace(_settings.ApiKey);
+
     public bool IsDarkMode
     {
         get => _settings.DarkMode;
@@ -121,11 +155,18 @@ public sealed class MainViewModel : ObservableObject
 
         _themeService.ApplyTheme(_settings.DarkMode);
 
+        SeedAvailableModels();
         BuildViewModels();
+        OnPropertyChanged(nameof(IsApiKeyMissing));
 
         if (SelectedChat is null)
         {
             CreateNewChat();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_settings.ApiKey))
+        {
+            await LoadAvailableModelsAsync();
         }
 
         StatusMessage = "Ready.";
@@ -140,10 +181,20 @@ public sealed class MainViewModel : ObservableObject
     {
         _settings = settingsViewModel.ToSettings();
         _themeService.ApplyTheme(_settings.DarkMode);
+        if (settingsViewModel.Models.Count > 0)
+        {
+            UpdateAvailableModels(settingsViewModel.Models);
+        }
         OnPropertyChanged(nameof(Settings));
         OnPropertyChanged(nameof(IsDarkMode));
+        OnPropertyChanged(nameof(IsApiKeyMissing));
         HotkeyChanged?.Invoke(this, EventArgs.Empty);
         await _dataStore.SaveSettingsAsync(_settings);
+
+        if (AvailableModels.Count == 0 && !string.IsNullOrWhiteSpace(_settings.ApiKey))
+        {
+            await LoadAvailableModelsAsync();
+        }
     }
 
     public void MoveChatToFolder(ChatConversationViewModel chat, ChatFolderViewModel? folder)
@@ -172,6 +223,7 @@ public sealed class MainViewModel : ObservableObject
 
         chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
         _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
     }
 
     public void DeleteChat(ChatConversationViewModel chat)
@@ -181,6 +233,12 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        if (_temporaryChat == chat)
+        {
+            _temporaryChat = null;
+        }
+
+        chat.PropertyChanged -= Chat_PropertyChanged;
         RemoveChatFromCollections(chat);
         _state.Conversations.Remove(chat.Model);
 
@@ -191,6 +249,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
     }
 
     public void DeleteFolder(ChatFolderViewModel folder)
@@ -210,6 +269,32 @@ public sealed class MainViewModel : ObservableObject
         Folders.Remove(folder);
         _state.Folders.Remove(folder.Model);
         _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
+    }
+
+    public void RenameChat(ChatConversationViewModel chat, string title)
+    {
+        if (chat is null || string.IsNullOrWhiteSpace(title))
+        {
+            return;
+        }
+
+        chat.Title = title.Trim();
+        chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
+        _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
+    }
+
+    public void RenameFolder(ChatFolderViewModel folder, string name)
+    {
+        if (folder is null || string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        folder.Name = name.Trim();
+        _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
     }
 
     private void BuildViewModels()
@@ -242,11 +327,16 @@ public sealed class MainViewModel : ObservableObject
             {
                 RootChats.Add(chatViewModel);
             }
+
+            chatViewModel.PropertyChanged += Chat_PropertyChanged;
         }
 
         SelectedChat = FindChatById(_state.ActiveChatId)
             ?? RootChats.FirstOrDefault()
             ?? Folders.SelectMany(folder => folder.Chats).FirstOrDefault();
+
+        EnsureChatModels();
+        RebuildConversationItems();
     }
 
     private ChatConversationViewModel? FindChatById(string? id)
@@ -262,16 +352,55 @@ public sealed class MainViewModel : ObservableObject
 
     private void CreateNewChat()
     {
+        IsSidebarVisible = true;
         var chat = new ChatConversation
         {
-            Title = GetNextChatTitle()
+            Title = GetNextChatTitle(),
+            Model = ResolveDefaultModel()
         };
         _state.Conversations.Add(chat);
 
         var viewModel = new ChatConversationViewModel(chat);
+        viewModel.PropertyChanged += Chat_PropertyChanged;
         RootChats.Insert(0, viewModel);
         SelectedChat = viewModel;
         _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
+    }
+
+    public void OpenTemporaryChat()
+    {
+        if (_temporaryChat is not null)
+        {
+            SelectedChat = _temporaryChat;
+            return;
+        }
+
+        var chat = new ChatConversation
+        {
+            Title = "Temporary chat",
+            Model = ResolveDefaultModel(),
+            IsTemporary = true
+        };
+
+        _state.Conversations.Add(chat);
+        var viewModel = new ChatConversationViewModel(chat);
+        viewModel.PropertyChanged += Chat_PropertyChanged;
+        RootChats.Insert(0, viewModel);
+        _temporaryChat = viewModel;
+        SelectedChat = viewModel;
+        _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
+    }
+
+    public void ClearTemporaryChat()
+    {
+        if (_temporaryChat is null)
+        {
+            return;
+        }
+
+        DeleteChat(_temporaryChat);
     }
 
     public void AddFolder(string name)
@@ -281,10 +410,12 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        IsSidebarVisible = true;
         var folder = new ChatFolder { Name = name.Trim() };
         _state.Folders.Add(folder);
         Folders.Add(new ChatFolderViewModel(folder));
         _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
     }
 
     private void RequestNewFolder()
@@ -306,7 +437,6 @@ public sealed class MainViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
-            StatusMessage = "API key missing. Open settings to configure.";
             ApiKeyMissing?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -335,9 +465,9 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            var model = string.IsNullOrWhiteSpace(_settings.SelectedModel)
-                ? "google-claude-4.5-sonnet"
-                : _settings.SelectedModel;
+            var model = string.IsNullOrWhiteSpace(chat.SelectedModel)
+                ? ResolveDefaultModel()
+                : chat.SelectedModel;
 
             var reply = await _apiClient.SendChatAsync(
                 _settings.ApiKey,
@@ -418,6 +548,141 @@ public sealed class MainViewModel : ObservableObject
     private void ToggleTheme()
     {
         IsDarkMode = !IsDarkMode;
+    }
+
+    private void ToggleSidebar()
+    {
+        IsSidebarVisible = !IsSidebarVisible;
+    }
+
+    public void UpdateWindowPlacement(double left, double top, double width, double height)
+    {
+        _settings.WindowLeft = left;
+        _settings.WindowTop = top;
+        _settings.WindowWidth = width;
+        _settings.WindowHeight = height;
+        _ = _dataStore.SaveSettingsAsync(_settings);
+    }
+
+    private async Task LoadAvailableModelsAsync()
+    {
+        try
+        {
+            var models = await _apiClient.GetVerifiedModelsAsync(_settings.ApiKey, _settings.BaseUrl, CancellationToken.None);
+            UpdateAvailableModels(models);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+    }
+
+    private void UpdateAvailableModels(IEnumerable<string> models)
+    {
+        AvailableModels.Clear();
+        foreach (var model in models)
+        {
+            AvailableModels.Add(model);
+        }
+
+        EnsureChatModels();
+    }
+
+    private void EnsureChatModels()
+    {
+        foreach (var chat in RootChats)
+        {
+            EnsureChatModel(chat);
+        }
+
+        foreach (var chat in Folders.SelectMany(folder => folder.Chats))
+        {
+            EnsureChatModel(chat);
+        }
+    }
+
+    private void EnsureChatModel(ChatConversationViewModel chat)
+    {
+        if (chat is null)
+        {
+            return;
+        }
+
+        var defaultModel = ResolveDefaultModel();
+        if (string.IsNullOrWhiteSpace(chat.SelectedModel))
+        {
+            chat.SelectedModel = defaultModel;
+            return;
+        }
+
+        if (AvailableModels.Count > 0 && !AvailableModels.Contains(chat.SelectedModel))
+        {
+            chat.SelectedModel = defaultModel;
+        }
+    }
+
+    private string ResolveDefaultModel()
+    {
+        if (!string.IsNullOrWhiteSpace(_settings.SelectedModel))
+        {
+            if (AvailableModels.Count == 0 || AvailableModels.Contains(_settings.SelectedModel))
+            {
+                return _settings.SelectedModel;
+            }
+        }
+
+        return AvailableModels.FirstOrDefault() ?? GetFallbackModel();
+    }
+
+    private string GetFallbackModel()
+    {
+        return string.IsNullOrWhiteSpace(_settings.SelectedModel)
+            ? "google-claude-4.5-sonnet"
+            : _settings.SelectedModel;
+    }
+
+    private void SeedAvailableModels()
+    {
+        if (AvailableModels.Count > 0)
+        {
+            return;
+        }
+
+        var fallback = GetFallbackModel();
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            AvailableModels.Add(fallback);
+        }
+    }
+
+    private void RebuildConversationItems()
+    {
+        ConversationItems.Clear();
+
+        foreach (var folder in Folders)
+        {
+            ConversationItems.Add(folder);
+        }
+
+        foreach (var chat in RootChats)
+        {
+            ConversationItems.Add(chat);
+        }
+    }
+
+    private void Chat_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ChatConversationViewModel chat)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(ChatConversationViewModel.SelectedModel)
+            || e.PropertyName == nameof(ChatConversationViewModel.Title))
+        {
+            chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
+            _ = _dataStore.SaveStateAsync(_state);
+        }
     }
 
     private void RemoveChatFromCollections(ChatConversationViewModel chat)

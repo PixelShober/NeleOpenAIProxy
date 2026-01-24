@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Linq;
 using System.Threading.Tasks;
 using NeleDesktop.Models;
 
@@ -56,7 +57,21 @@ public sealed class AppDataStore
     public async Task SaveStateAsync(AppState state)
     {
         Directory.CreateDirectory(_rootPath);
-        var json = JsonSerializer.Serialize(state, _jsonOptions);
+        var filteredConversations = state.Conversations
+            .Where(conversation => !conversation.IsTemporary)
+            .ToList();
+        var activeChatId = filteredConversations.Any(conversation => conversation.Id == state.ActiveChatId)
+            ? state.ActiveChatId
+            : null;
+
+        var stateToSave = new AppState
+        {
+            ActiveChatId = activeChatId,
+            Folders = state.Folders,
+            Conversations = filteredConversations
+        };
+
+        var json = JsonSerializer.Serialize(stateToSave, _jsonOptions);
         await File.WriteAllTextAsync(_statePath, json).ConfigureAwait(false);
     }
 }

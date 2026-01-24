@@ -4,7 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:vm="clr-namespace:NeleDesktop.ViewModels"
         xmlns:models="clr-namespace:NeleDesktop.Models"
-        Title="Nele Chat" Width="940" Height="620" MinWidth="820" MinHeight="540"
+        Title="Nele Chat" Width="820" Height="620" MinWidth="560" MinHeight="520"
         WindowStyle="None"
         ResizeMode="CanResize"
         Background="{DynamicResource WindowBackgroundBrush}"
@@ -12,7 +12,9 @@
         Loaded="Window_Loaded"
         SourceInitialized="Window_SourceInitialized"
         Closing="Window_Closing"
-        StateChanged="Window_StateChanged">
+        StateChanged="Window_StateChanged"
+        LocationChanged="Window_LocationChanged"
+        SizeChanged="Window_SizeChanged">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="44" CornerRadius="12" GlassFrameThickness="0" ResizeBorderThickness="6" />
     </shell:WindowChrome.WindowChrome>
@@ -35,12 +37,21 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Nele AI" FontSize="14" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="12,0,0,0" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+                    <Button Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding ToggleSidebarCommand}"
+                            ToolTip="Toggle conversations"
+                            VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16" Text="&#xE700;" />
+                    </Button>
+                    <TextBlock Text="Nele AI" FontSize="14" FontWeight="SemiBold" Margin="6,1,0,0" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButtonStyle}" Command="{Binding ToggleThemeCommand}" ToolTip="Toggle theme">
+                    <Button Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding ToggleThemeCommand}"
+                            ToolTip="Toggle theme"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -54,19 +65,35 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Button>
-                    <Button Style="{StaticResource IconButtonStyle}" Click="OpenSettings_Click" ToolTip="Settings" Margin="6,0,0,0">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16" Text="&#xE713;" />
-                    </Button>
+                    <Grid Margin="6,0,0,0">
+                        <Button Style="{StaticResource IconButtonStyle}"
+                                Click="OpenSettings_Click"
+                                ToolTip="Settings"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16" Text="&#xE713;" />
+                        </Button>
+                        <Border Width="14"
+                                Height="14"
+                                CornerRadius="7"
+                                Background="{DynamicResource AttentionBrush}"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Margin="0,-2,-2,0"
+                                IsHitTestVisible="False"
+                                Visibility="{Binding IsApiKeyMissing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="!" FontSize="10" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </Grid>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <Button Style="{StaticResource TitleBarButtonStyle}" Click="Minimize_Click">
+                    <Button Style="{StaticResource TitleBarButtonStyle}" Click="Minimize_Click" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE921;" />
                     </Button>
-                    <Button Style="{StaticResource TitleBarButtonStyle}" Click="Maximize_Click" Margin="4,0,0,0">
+                    <Button Style="{StaticResource TitleBarButtonStyle}" Click="Maximize_Click" Margin="4,0,0,0" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <TextBlock x:Name="MaximizeIcon" FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE922;" />
                     </Button>
-                    <Button Style="{StaticResource TitleBarCloseButtonStyle}" Click="Close_Click" Margin="4,0,0,0">
+                    <Button Style="{StaticResource TitleBarCloseButtonStyle}" Click="Close_Click" Margin="4,0,0,0" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE8BB;" />
                     </Button>
                 </StackPanel>
@@ -75,14 +102,25 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0"
+                    Width="{Binding SidebarWidth}"
+                    MinWidth="0"
                     Background="{DynamicResource SidebarBackgroundBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,0,1,0">
+                    BorderBrush="{DynamicResource BorderBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderThickness" Value="0,0,1,0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSidebarVisible}" Value="False">
+                                <Setter Property="BorderThickness" Value="0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -101,60 +139,185 @@
                               Background="Transparent"
                               BorderThickness="0"
                               AllowDrop="True"
+                              ItemsSource="{Binding ConversationItems}"
                               SelectedItemChanged="ConversationTree_SelectedItemChanged"
                               PreviewMouseLeftButtonDown="ConversationTree_PreviewMouseLeftButtonDown"
                               PreviewMouseMove="ConversationTree_PreviewMouseMove"
                               Drop="ConversationTree_Drop">
                         <TreeView.Resources>
                             <HierarchicalDataTemplate DataType="{x:Type vm:ChatFolderViewModel}" ItemsSource="{Binding Chats}">
-                                <StackPanel Orientation="Horizontal">
-                                    <StackPanel.ContextMenu>
+                                <Grid>
+                                    <Grid.ContextMenu>
                                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                            <MenuItem Header="Rename folder" Click="RenameFolder_Click" />
+                                            <Separator />
                                             <MenuItem Header="Delete folder" Click="DeleteFolder_Click" />
                                         </ContextMenu>
-                                    </StackPanel.ContextMenu>
-                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" Margin="0,0,8,0" />
-                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
+                                    </Grid.ContextMenu>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" Margin="0,0,8,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1"
+                                            Padding="6,2"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource BadgeBackgroundBrush}"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Chats.Count}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    </Border>
+                                </Grid>
                             </HierarchicalDataTemplate>
 
                             <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
-                                <StackPanel>
-                                    <StackPanel.ContextMenu>
+                                <Grid>
+                                    <Grid.ContextMenu>
                                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                            <MenuItem Header="Move to folder..." Click="MoveToFolder_Click" />
-                                            <MenuItem Header="Remove from folder" Click="RemoveFromFolder_Click" />
+                                            <MenuItem Header="Rename chat" Click="RenameChat_Click" />
+                                            <MenuItem Header="Move to folder"
+                                                      Tag="{Binding}"
+                                                      SubmenuOpened="MoveToFolder_SubmenuOpened" />
                                             <Separator />
                                             <MenuItem Header="Delete chat" Click="DeleteChat_Click" />
                                         </ContextMenu>
-                                    </StackPanel.ContextMenu>
-                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
+                                    </Grid.ContextMenu>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BD;" Margin="0,0,8,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1"
+                                            Padding="6,2"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource BadgeBackgroundBrush}"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsTemporary, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="TEMP" FontSize="9" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    </Border>
+                                </Grid>
                             </DataTemplate>
                         </TreeView.Resources>
-
-                        <TreeView.ItemsSource>
-                            <CompositeCollection>
-                                <CollectionContainer Collection="{Binding Folders}" />
-                                <CollectionContainer Collection="{Binding RootChats}" />
-                            </CompositeCollection>
-                        </TreeView.ItemsSource>
 
                         <TreeView.ItemContainerStyle>
                             <Style TargetType="TreeViewItem">
                                 <Setter Property="Margin" Value="0,2" />
-                                <Setter Property="Padding" Value="8,6" />
+                                <Setter Property="Padding" Value="0" />
                                 <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                                 <Setter Property="IsExpanded" Value="True" />
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
-                                    </Trigger>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="TreeViewItem">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <Border x:Name="HeaderBorder"
+                                                        CornerRadius="10"
+                                                        Background="{TemplateBinding Background}"
+                                                        Padding="10,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <ToggleButton x:Name="Expander"
+                                                                      Width="22"
+                                                                      Height="22"
+                                                                      Margin="0,0,8,0"
+                                                                      Background="Transparent"
+                                                                      BorderThickness="0"
+                                                                      IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                      Visibility="{Binding HasItems, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                      Focusable="False">
+                                                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                                       FontSize="12"
+                                                                       Foreground="{DynamicResource SecondaryTextBrush}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="&#xE70D;" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
+                                                                                <Setter Property="Text" Value="&#xE70E;" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </ToggleButton>
+                                                        <ContentPresenter Grid.Column="1" ContentSource="Header" />
+                                                    </Grid>
+                                                </Border>
+                                                <Border x:Name="ItemsBorder"
+                                                        Grid.Row="1"
+                                                        Margin="26,4,0,0"
+                                                        Opacity="0">
+                                                    <Border.RenderTransform>
+                                                        <TranslateTransform Y="-6" />
+                                                    </Border.RenderTransform>
+                                                    <ItemsPresenter x:Name="ItemsHost" />
+                                                </Border>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsExpanded" Value="False">
+                                                    <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed" />
+                                                    <Setter TargetName="ItemsBorder" Property="Opacity" Value="0" />
+                                                </Trigger>
+                                                <Trigger Property="IsExpanded" Value="True">
+                                                    <Setter TargetName="ItemsBorder" Property="Opacity" Value="1" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                                                </Trigger>
+                                                <EventTrigger RoutedEvent="Expanded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetName="ItemsBorder"
+                                                                             Storyboard.TargetProperty="Opacity"
+                                                                             From="0"
+                                                                             To="1"
+                                                                             Duration="0:0:0.2" />
+                                                            <DoubleAnimation Storyboard.TargetName="ItemsBorder"
+                                                                             Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                                             From="-6"
+                                                                             To="0"
+                                                                             Duration="0:0:0.2" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                                <EventTrigger RoutedEvent="Collapsed">
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetName="ItemsBorder"
+                                                                             Storyboard.TargetProperty="Opacity"
+                                                                             To="0"
+                                                                             Duration="0:0:0.1" />
+                                                            <DoubleAnimation Storyboard.TargetName="ItemsBorder"
+                                                                             Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                                             To="-6"
+                                                                             Duration="0:0:0.1" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                             </Style>
                         </TreeView.ItemContainerStyle>
                     </TreeView>
@@ -175,6 +338,17 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Margin="20,16,20,8" Padding="16" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Opacity" Value="1" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                    <Setter Property="Opacity" Value="0.6" />
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -182,13 +356,22 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Settings.SelectedModel}" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" />
                         </StackPanel>
-                        <TextBlock Grid.Column="1"
-                                   Text="Typing..."
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource SecondaryTextBrush}"
-                                   Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <ComboBox Grid.Column="1"
+                                  Width="220"
+                                  VerticalAlignment="Center"
+                                  ItemsSource="{Binding AvailableModels}"
+                                  SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
+                            <ComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.Style>
+                        </ComboBox>
                     </Grid>
                 </Border>
 
@@ -196,23 +379,56 @@
                               Grid.Row="1"
                               Margin="20,0,20,8"
                               VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding ActiveMessages}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type models:ChatMessage}">
-                                <StackPanel Margin="0,6" HorizontalAlignment="{Binding Role, Converter={StaticResource MessageAlignmentConverter}}">
-                                    <Border Background="{Binding Role, Converter={StaticResource MessageBubbleBrushConverter}}"
-                                            CornerRadius="16"
-                                            Padding="14"
-                                            MaxWidth="560">
-                                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
-                                    </Border>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer">
+                            <Setter Property="Opacity" Value="1" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                    <Setter Property="Opacity" Value="0.6" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding ActiveMessages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:ChatMessage}">
+                                    <StackPanel Margin="0,6" HorizontalAlignment="{Binding Role, Converter={StaticResource MessageAlignmentConverter}}">
+                                        <Border Background="{Binding Role, Converter={StaticResource MessageBubbleBrushConverter}}"
+                                                CornerRadius="16"
+                                                Padding="14"
+                                                MaxWidth="560">
+                                            <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Border Background="{DynamicResource AssistantBubbleBrush}"
+                                CornerRadius="16"
+                                Padding="12,8"
+                                MaxWidth="160"
+                                Margin="0,6,0,0"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="..." FontSize="18" Foreground="{DynamicResource SecondaryTextBrush}" />
+                        </Border>
+                    </StackPanel>
                 </ScrollViewer>
 
                 <Border Grid.Row="2" Margin="20,8,20,20" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="14" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="IsEnabled" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                    <Setter Property="Opacity" Value="0.6" />
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid Margin="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -229,9 +445,10 @@
                                  KeyDown="InputBox_KeyDown" />
                         <Button Grid.Column="1"
                                 Margin="10,0,2,0"
-                                Content="Send"
-                                MinWidth="90"
-                                Command="{Binding SendMessageCommand}" />
+                                Style="{StaticResource SendButtonStyle}"
+                                Command="{Binding SendMessageCommand}">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16" Text="&#xE72A;" />
+                        </Button>
                     </Grid>
                 </Border>
             </Grid>

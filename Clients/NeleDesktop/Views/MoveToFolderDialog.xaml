@@ -30,7 +30,10 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Title}"
                            FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Button Grid.Column="1" Style="{StaticResource TitleBarCloseButtonStyle}" Click="Close_Click">
+                <Button Grid.Column="1"
+                        Style="{StaticResource TitleBarCloseButtonStyle}"
+                        Click="Close_Click"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="11" Text="&#xE8BB;" />
                 </Button>
             </Grid>

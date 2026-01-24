@@ -36,9 +36,24 @@ public sealed class NeleApiClient
         var models = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         AddModels(document.RootElement, "models", models);
         AddModels(document.RootElement, "team_models", models);
-        AddModels(document.RootElement, "image_generators", models);
 
         return models.OrderBy(model => model, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    public async Task<IReadOnlyList<string>> GetVerifiedModelsAsync(string apiKey, string baseUrl, CancellationToken cancellationToken)
+    {
+        var models = await GetModelsAsync(apiKey, baseUrl, cancellationToken);
+        var verified = new List<string>();
+
+        foreach (var model in models)
+        {
+            if (await IsModelUsableAsync(apiKey, baseUrl, model, cancellationToken))
+            {
+                verified.Add(model);
+            }
+        }
+
+        return verified;
     }
 
     public async Task<string> SendChatAsync(
@@ -46,13 +61,25 @@ public sealed class NeleApiClient
         string baseUrl,
         string model,
         IReadOnlyCollection<ChatMessage> messages,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? maxTokens = null,
+        double? temperature = null)
     {
         var payload = new JsonObject
         {
             ["model"] = model,
             ["messages"] = BuildMessageArray(messages)
         };
+
+        if (maxTokens is not null)
+        {
+            payload["max_tokens"] = maxTokens.Value;
+        }
+
+        if (temperature is not null)
+        {
+            payload["temperature"] = temperature.Value;
+        }
 
         var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(baseUrl, "chat-completion-sync"))
         {
@@ -95,6 +122,11 @@ public sealed class NeleApiClient
 
         foreach (var model in models.EnumerateArray())
         {
+            if (!IsModelAvailable(model))
+            {
+                continue;
+            }
+
             if (model.TryGetProperty("id", out var idValue))
             {
                 var id = idValue.GetString();
@@ -104,6 +136,55 @@ public sealed class NeleApiClient
                 }
             }
         }
+    }
+
+    private static bool IsModelAvailable(JsonElement model)
+    {
+        if (TryGetBoolean(model, "enabled", out var enabled) && !enabled)
+        {
+            return false;
+        }
+
+        if (TryGetBoolean(model, "available", out var available) && !available)
+        {
+            return false;
+        }
+
+        if (TryGetBoolean(model, "disabled", out var disabled) && disabled)
+        {
+            return false;
+        }
+
+        if (TryGetBoolean(model, "is_available", out var isAvailable) && !isAvailable)
+        {
+            return false;
+        }
+
+        if (model.TryGetProperty("status", out var status)
+            && status.ValueKind == JsonValueKind.String)
+        {
+            var value = status.GetString();
+            if (string.Equals(value, "disabled", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "unavailable", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetBoolean(JsonElement model, string propertyName, out bool value)
+    {
+        if (model.TryGetProperty(propertyName, out var property)
+            && (property.ValueKind == JsonValueKind.True || property.ValueKind == JsonValueKind.False))
+        {
+            value = property.GetBoolean();
+            return true;
+        }
+
+        value = false;
+        return false;
     }
 
     private static JsonArray BuildMessageArray(IReadOnlyCollection<ChatMessage> messages)
@@ -119,5 +200,31 @@ public sealed class NeleApiClient
         }
 
         return array;
+    }
+
+    private async Task<bool> IsModelUsableAsync(string apiKey, string baseUrl, string model, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var messages = new[]
+            {
+                new ChatMessage
+                {
+                    Role = "user",
+                    Content = "ping"
+                }
+            };
+
+            _ = await SendChatAsync(apiKey, baseUrl, model, messages, cancellationToken, maxTokens: 1, temperature: 0);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

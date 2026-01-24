@@ -1,6 +1,6 @@
 using System;
 using System.Globalization;
-using System.Windows;
+using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 using System.Windows.Data;
 
 namespace NeleDesktop.Converters;
@@ -11,10 +11,10 @@ public sealed class MessageAlignmentConverter : IValueConverter
     {
         if (value is string role && role.Equals("user", StringComparison.OrdinalIgnoreCase))
         {
-            return HorizontalAlignment.Right;
+            return WpfHorizontalAlignment.Right;
         }
 
-        return HorizontalAlignment.Left;
+        return WpfHorizontalAlignment.Left;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

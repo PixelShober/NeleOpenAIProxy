@@ -1,11 +1,17 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using WpfButton = System.Windows.Controls.Button;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
+using WpfDragEventArgs = System.Windows.DragEventArgs;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
+using WpfPoint = System.Windows.Point;
 using NeleDesktop.Models;
 using NeleDesktop.Services;
 using NeleDesktop.ViewModels;
@@ -17,7 +23,8 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel = new();
     private HotkeyService? _hotkeyService;
-    private Point _dragStart;
+    private HotkeyService? _temporaryHotkeyService;
+    private WpfPoint _dragStart;
     private ObservableCollection<ChatMessage>? _activeMessages;
 
     public MainWindow()
@@ -28,7 +35,7 @@ public partial class MainWindow : Window
         _viewModel.NewFolderRequested += (_, _) => PromptNewFolder();
         _viewModel.ApiKeyMissing += (_, _) =>
         {
-            MessageBox.Show(this, "Please set your Nele AI API key in Settings.", "API key missing", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, "Please set your Nele AI API key in Settings.", "API key missing", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
         _viewModel.PropertyChanged += (_, args) =>
         {
@@ -36,12 +43,18 @@ public partial class MainWindow : Window
             {
                 AttachMessageCollection();
             }
+
+            if (args.PropertyName == nameof(MainViewModel.IsBusy))
+            {
+                ScrollToEnd();
+            }
         };
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         await _viewModel.InitializeAsync();
+        ApplyWindowPlacement();
         AttachMessageCollection();
         if (string.IsNullOrWhiteSpace(_viewModel.Settings.ApiKey))
         {
@@ -52,34 +65,39 @@ public partial class MainWindow : Window
     private void Window_SourceInitialized(object? sender, EventArgs e)
     {
         _hotkeyService = new HotkeyService(this);
+        _temporaryHotkeyService = new HotkeyService(this);
         _hotkeyService.Initialize();
+        _temporaryHotkeyService.Initialize();
         _hotkeyService.HotkeyPressed += (_, _) => ToggleVisibility();
+        _temporaryHotkeyService.HotkeyPressed += (_, _) => OpenTemporaryChat();
         ApplyHotkey();
     }
 
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        SaveWindowPlacement();
+
         if (!App.IsShuttingDown)
         {
+            _viewModel.ClearTemporaryChat();
             e.Cancel = true;
-            Hide();
+            HideToTray();
             return;
         }
 
         _hotkeyService?.Dispose();
+        _temporaryHotkeyService?.Dispose();
     }
 
     private void ToggleVisibility()
     {
         if (IsVisible)
         {
-            Hide();
+            HideToTray();
             return;
         }
 
-        Show();
-        Activate();
-        Focus();
+        ShowFromTray();
     }
 
     private void ApplyHotkey()
@@ -90,6 +108,7 @@ public partial class MainWindow : Window
         }
 
         _hotkeyService.Register(_viewModel.Settings.Hotkey);
+        _temporaryHotkeyService?.Register(_viewModel.Settings.TemporaryHotkey);
     }
 
     private void ConversationTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -105,7 +124,7 @@ public partial class MainWindow : Window
         _dragStart = e.GetPosition(null);
     }
 
-    private void ConversationTree_PreviewMouseMove(object sender, MouseEventArgs e)
+    private void ConversationTree_PreviewMouseMove(object sender, WpfMouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed)
         {
@@ -121,11 +140,11 @@ public partial class MainWindow : Window
 
         if (ConversationTree.SelectedItem is ChatConversationViewModel chat)
         {
-            DragDrop.DoDragDrop(ConversationTree, chat, DragDropEffects.Move);
+            DragDrop.DoDragDrop(ConversationTree, chat, System.Windows.DragDropEffects.Move);
         }
     }
 
-    private void ConversationTree_Drop(object sender, DragEventArgs e)
+    private void ConversationTree_Drop(object sender, WpfDragEventArgs e)
     {
         if (!e.Data.GetDataPresent(typeof(ChatConversationViewModel)))
         {
@@ -192,6 +211,15 @@ public partial class MainWindow : Window
         await OpenSettingsAsync();
     }
 
+    public void OpenSettingsFromTray()
+    {
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            ShowFromTray();
+            await OpenSettingsAsync();
+        });
+    }
+
     private async Task OpenSettingsAsync()
     {
         var viewModel = _viewModel.CreateSettingsViewModel();
@@ -209,6 +237,12 @@ public partial class MainWindow : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source
+            && GetAncestor<WpfButton>(source) is not null)
+        {
+            return;
+        }
+
         if (e.ClickCount == 2)
         {
             ToggleMaximize();
@@ -230,7 +264,7 @@ public partial class MainWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e)
     {
-        App.RequestShutdown();
+        Close();
     }
 
     private void Window_StateChanged(object? sender, EventArgs e)
@@ -241,11 +275,17 @@ public partial class MainWindow : Window
         }
 
         MaximizeIcon.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+
+        if (WindowState == WindowState.Minimized)
+        {
+            SaveWindowPlacement();
+            _viewModel.ClearTemporaryChat();
+        }
     }
 
-    private void InputBox_KeyDown(object sender, KeyEventArgs e)
+    private void InputBox_KeyDown(object sender, WpfKeyEventArgs e)
     {
-        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
+        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
         {
             if (_viewModel.SendMessageCommand.CanExecute(null))
             {
@@ -253,6 +293,78 @@ public partial class MainWindow : Window
                 e.Handled = true;
             }
         }
+    }
+
+    private void RenameChat_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem && menuItem.DataContext is ChatConversationViewModel chat)
+        {
+            var name = PromptDialog.Show(this, "Rename chat", "Chat title:", chat.Title);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                _viewModel.RenameChat(chat, name);
+            }
+        }
+    }
+
+    private void RenameFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem && menuItem.DataContext is ChatFolderViewModel folder)
+        {
+            var name = PromptDialog.Show(this, "Rename folder", "Folder name:", folder.Name);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                _viewModel.RenameFolder(folder, name);
+            }
+        }
+    }
+
+    private void MoveToFolder_SubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not ChatConversationViewModel chat)
+        {
+            return;
+        }
+
+        menuItem.Items.Clear();
+
+        var noneItem = new MenuItem { Header = "No folder", CommandParameter = chat, IsCheckable = true };
+        noneItem.IsChecked = string.IsNullOrWhiteSpace(chat.FolderId);
+        noneItem.Click += MoveChatToFolder_Click;
+        menuItem.Items.Add(noneItem);
+
+        if (_viewModel.Folders.Count == 0)
+        {
+            return;
+        }
+
+        menuItem.Items.Add(new Separator());
+
+        foreach (var folder in _viewModel.Folders)
+        {
+            var folderItem = new MenuItem
+            {
+                Header = folder.Name,
+                Tag = folder.Id,
+                CommandParameter = chat,
+                IsChecked = string.Equals(chat.FolderId, folder.Id, StringComparison.OrdinalIgnoreCase),
+                IsCheckable = true
+            };
+            folderItem.Click += MoveChatToFolder_Click;
+            menuItem.Items.Add(folderItem);
+        }
+    }
+
+    private void MoveChatToFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.CommandParameter is not ChatConversationViewModel chat)
+        {
+            return;
+        }
+
+        var folderId = menuItem.Tag as string;
+        var targetFolder = string.IsNullOrWhiteSpace(folderId) ? null : FindFolder(folderId);
+        _viewModel.MoveChatToFolder(chat, targetFolder);
     }
 
     private void PromptNewFolder()
@@ -286,9 +398,87 @@ public partial class MainWindow : Window
         ChatScrollViewer?.ScrollToEnd();
     }
 
+    private void FocusInputBox()
+    {
+        if (InputBox is null)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            InputBox.Focus();
+            InputBox.CaretIndex = InputBox.Text?.Length ?? 0;
+        }, DispatcherPriority.Input);
+    }
+
     private void ToggleMaximize()
     {
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private void OpenTemporaryChat()
+    {
+        _viewModel.OpenTemporaryChat();
+        ShowFromTray();
+    }
+
+    public void ShowFromTray()
+    {
+        ShowInTaskbar = true;
+        Show();
+        WindowState = WindowState == WindowState.Minimized ? WindowState.Normal : WindowState;
+        Activate();
+        Focus();
+        FocusInputBox();
+    }
+
+    private void HideToTray()
+    {
+        ShowInTaskbar = false;
+        _viewModel.ClearTemporaryChat();
+        Hide();
+    }
+
+    private void ApplyWindowPlacement()
+    {
+        var settings = _viewModel.Settings;
+        if (settings.WindowWidth is > 0 && settings.WindowHeight is > 0)
+        {
+            Width = settings.WindowWidth.Value;
+            Height = settings.WindowHeight.Value;
+        }
+
+        if (settings.WindowLeft is not null && settings.WindowTop is not null)
+        {
+            Left = settings.WindowLeft.Value;
+            Top = settings.WindowTop.Value;
+        }
+    }
+
+    private void SaveWindowPlacement()
+    {
+        var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+        if (bounds.Width > 0 && bounds.Height > 0)
+        {
+            _viewModel.UpdateWindowPlacement(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+        }
+    }
+
+    private void Window_LocationChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Normal)
+        {
+            SaveWindowPlacement();
+        }
+    }
+
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (WindowState == WindowState.Normal)
+        {
+            SaveWindowPlacement();
+        }
     }
 
     private ChatFolderViewModel? FindFolder(string folderId)
@@ -319,3 +509,4 @@ public partial class MainWindow : Window
         return null;
     }
 }
+

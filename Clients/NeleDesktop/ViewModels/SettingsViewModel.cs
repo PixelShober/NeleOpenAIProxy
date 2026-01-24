@@ -14,6 +14,7 @@ public sealed class SettingsViewModel : ObservableObject
     private string _baseUrl = string.Empty;
     private string _selectedModel = string.Empty;
     private string _hotkey = string.Empty;
+    private string _temporaryHotkey = string.Empty;
     private bool _isDarkMode;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
@@ -26,6 +27,7 @@ public sealed class SettingsViewModel : ObservableObject
         _baseUrl = settings.BaseUrl;
         _selectedModel = settings.SelectedModel;
         _hotkey = settings.Hotkey;
+        _temporaryHotkey = settings.TemporaryHotkey;
         _isDarkMode = settings.DarkMode;
         _statusMessage = string.IsNullOrWhiteSpace(_apiKey) ? "Enter an API key to load models." : string.Empty;
     }
@@ -56,6 +58,12 @@ public sealed class SettingsViewModel : ObservableObject
         set => SetProperty(ref _hotkey, value);
     }
 
+    public string TemporaryHotkey
+    {
+        get => _temporaryHotkey;
+        set => SetProperty(ref _temporaryHotkey, value);
+    }
+
     public bool IsDarkMode
     {
         get => _isDarkMode;
@@ -83,17 +91,17 @@ public sealed class SettingsViewModel : ObservableObject
         }
 
         IsBusy = true;
-        StatusMessage = "Loading models...";
+        StatusMessage = "Validating models...";
         try
         {
-            var models = await _apiClient.GetModelsAsync(ApiKey, BaseUrl, cancellationToken);
+            var models = await _apiClient.GetVerifiedModelsAsync(ApiKey, BaseUrl, cancellationToken);
             Models.Clear();
             foreach (var model in models)
             {
                 Models.Add(model);
             }
 
-            if (string.IsNullOrWhiteSpace(SelectedModel) && Models.Count > 0)
+            if (Models.Count > 0 && (string.IsNullOrWhiteSpace(SelectedModel) || !Models.Contains(SelectedModel)))
             {
                 SelectedModel = Models[0];
             }
@@ -124,6 +132,7 @@ public sealed class SettingsViewModel : ObservableObject
             BaseUrl = baseUrl,
             SelectedModel = SelectedModel?.Trim() ?? string.Empty,
             Hotkey = Hotkey?.Trim() ?? string.Empty,
+            TemporaryHotkey = TemporaryHotkey?.Trim() ?? string.Empty,
             DarkMode = IsDarkMode
         };
     }

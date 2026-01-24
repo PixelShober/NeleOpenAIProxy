@@ -27,6 +27,19 @@ public sealed class ChatConversationViewModel : ObservableObject
         }
     }
 
+    public string SelectedModel
+    {
+        get => Model.Model;
+        set
+        {
+            if (Model.Model != value)
+            {
+                Model.Model = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public string? FolderId
     {
         get => Model.FolderId;
@@ -39,4 +52,6 @@ public sealed class ChatConversationViewModel : ObservableObject
             }
         }
     }
+
+    public bool IsTemporary => Model.IsTemporary;
 }
