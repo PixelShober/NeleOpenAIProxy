@@ -27,6 +27,7 @@ public sealed class SettingsViewModel : ObservableObject
         _selectedModel = settings.SelectedModel;
         _hotkey = settings.Hotkey;
         _isDarkMode = settings.DarkMode;
+        _statusMessage = string.IsNullOrWhiteSpace(_apiKey) ? "Enter an API key to load models." : string.Empty;
     }
 
     public ObservableCollection<string> Models { get; } = new();

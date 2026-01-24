@@ -1,6 +1,7 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 using NeleDesktop.ViewModels;
 
 namespace NeleDesktop.Views;
@@ -39,6 +40,16 @@ public partial class MoveToFolderDialog : Window
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        DragMove();
     }
 
     public sealed class FolderOption

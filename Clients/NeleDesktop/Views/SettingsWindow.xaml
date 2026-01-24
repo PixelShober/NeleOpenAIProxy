@@ -1,0 +1,65 @@
+﻿<Window x:Class="NeleDesktop.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Settings" Width="520" Height="460"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackgroundBrush}">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44" CornerRadius="12" GlassFrameThickness="0" ResizeBorderThickness="0" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{DynamicResource TitleBarBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Settings" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Style="{StaticResource TitleBarCloseButtonStyle}" Click="Close_Click">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE8BB;" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,16,24,0">
+            <StackPanel>
+                <TextBlock Text="API key" FontWeight="SemiBold" />
+                <TextBox Margin="0,6,0,0"
+                         Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
+                         TextChanged="ApiKey_TextChanged" />
+
+                <TextBlock Text="Base URL" FontWeight="SemiBold" Margin="0,16,0,0" />
+                <TextBox Margin="0,6,0,0" Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Text="Model" FontWeight="SemiBold" Margin="0,16,0,0" />
+                <ComboBox Margin="0,6,0,0"
+                          ItemsSource="{Binding Models}"
+                          SelectedItem="{Binding SelectedModel}" />
+
+                <TextBlock Text="Hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
+                <TextBox Margin="0,6,0,0" Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,16,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,24,20">
+            <Button Content="Cancel" Click="Cancel_Click" Style="{StaticResource SecondaryButtonStyle}" MinWidth="100" />
+            <Button Content="Save" Click="Save_Click" Margin="10,0,0,0" MinWidth="100" />
+        </StackPanel>
+    </Grid>
+</Window>

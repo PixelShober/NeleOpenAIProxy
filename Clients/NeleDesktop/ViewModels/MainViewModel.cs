@@ -34,6 +34,7 @@ public sealed class MainViewModel : ObservableObject
 
     public event EventHandler? HotkeyChanged;
     public event EventHandler? NewFolderRequested;
+    public event EventHandler? ApiKeyMissing;
 
     public ObservableCollection<ChatFolderViewModel> Folders { get; } = new();
 
@@ -261,7 +262,10 @@ public sealed class MainViewModel : ObservableObject
 
     private void CreateNewChat()
     {
-        var chat = new ChatConversation();
+        var chat = new ChatConversation
+        {
+            Title = GetNextChatTitle()
+        };
         _state.Conversations.Add(chat);
 
         var viewModel = new ChatConversationViewModel(chat);
@@ -303,6 +307,7 @@ public sealed class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
             StatusMessage = "API key missing. Open settings to configure.";
+            ApiKeyMissing?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -370,13 +375,31 @@ public sealed class MainViewModel : ObservableObject
 
     private void UpdateChatTitle(ChatConversationViewModel chat, string text)
     {
-        if (!string.Equals(chat.Title, "New chat", StringComparison.OrdinalIgnoreCase))
+        if (!chat.Title.StartsWith("New chat", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
         var title = text.Length > 40 ? text[..40] + "..." : text;
         chat.Title = title;
+    }
+
+    private string GetNextChatTitle()
+    {
+        const string baseTitle = "New chat";
+        var titles = _state.Conversations.Select(chat => chat.Title).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!titles.Contains(baseTitle))
+        {
+            return baseTitle;
+        }
+
+        var index = 2;
+        while (titles.Contains($"{baseTitle} {index}"))
+        {
+            index++;
+        }
+
+        return $"{baseTitle} {index}";
     }
 
     private bool CanSendMessage()

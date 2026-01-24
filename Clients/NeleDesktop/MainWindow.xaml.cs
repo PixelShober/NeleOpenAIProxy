@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,6 +26,10 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         _viewModel.HotkeyChanged += (_, _) => ApplyHotkey();
         _viewModel.NewFolderRequested += (_, _) => PromptNewFolder();
+        _viewModel.ApiKeyMissing += (_, _) =>
+        {
+            MessageBox.Show(this, "Please set your Nele AI API key in Settings.", "API key missing", MessageBoxButton.OK, MessageBoxImage.Warning);
+        };
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.ActiveMessages))
@@ -38,6 +43,10 @@ public partial class MainWindow : Window
     {
         await _viewModel.InitializeAsync();
         AttachMessageCollection();
+        if (string.IsNullOrWhiteSpace(_viewModel.Settings.ApiKey))
+        {
+            await OpenSettingsAsync();
+        }
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -180,6 +189,11 @@ public partial class MainWindow : Window
 
     private async void OpenSettings_Click(object sender, RoutedEventArgs e)
     {
+        await OpenSettingsAsync();
+    }
+
+    private async Task OpenSettingsAsync()
+    {
         var viewModel = _viewModel.CreateSettingsViewModel();
         var dialog = new SettingsWindow(viewModel)
         {
@@ -191,6 +205,42 @@ public partial class MainWindow : Window
             await _viewModel.ApplySettingsAsync(viewModel);
             ApplyHotkey();
         }
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            ToggleMaximize();
+            return;
+        }
+
+        DragMove();
+    }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void Maximize_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleMaximize();
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        App.RequestShutdown();
+    }
+
+    private void Window_StateChanged(object? sender, EventArgs e)
+    {
+        if (MaximizeIcon is null)
+        {
+            return;
+        }
+
+        MaximizeIcon.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
     }
 
     private void InputBox_KeyDown(object sender, KeyEventArgs e)
@@ -234,6 +284,11 @@ public partial class MainWindow : Window
     private void ScrollToEnd()
     {
         ChatScrollViewer?.ScrollToEnd();
+    }
+
+    private void ToggleMaximize()
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
     private ChatFolderViewModel? FindFolder(string folderId)

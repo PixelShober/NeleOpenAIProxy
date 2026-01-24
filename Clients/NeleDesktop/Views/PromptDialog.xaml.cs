@@ -1,4 +1,5 @@
-using System.Windows;
+﻿using System.Windows;
+using System.Windows.Input;
 
 namespace NeleDesktop.Views;
 
@@ -9,6 +10,7 @@ public partial class PromptDialog : Window
         InitializeComponent();
         Title = title;
         PromptText.Text = prompt;
+        Loaded += (_, _) => InputBox.Focus();
     }
 
     public string ResponseText => InputBox.Text ?? string.Empty;
@@ -31,5 +33,15 @@ public partial class PromptDialog : Window
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        DragMove();
     }
 }

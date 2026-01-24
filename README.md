@@ -16,6 +16,10 @@ Minimaler C#-Proxy, der OpenAI-kompatible Endpunkte auf die Nele.AI API ueberset
 - Optionaler Default fuer Chat-Modelle via Config
 - Konfiguration wird immer aus dem Ordner der EXE gelesen
 
+## Projektstruktur
+- `Proxy/` enthaelt den Web-Proxy
+- `Clients/NeleDesktop/` enthaelt die WPF-Desktop-App
+
 ## Desktop App (Chat Modus)
 Eine schlanke WPF-App (net9.0) fuer den direkten Zugriff auf Nele AI.
 
@@ -25,11 +29,12 @@ Funktionen:
 - Chat-Verlauf mit mehreren Konversationen
 - Ordner fuer Chats (Drag & Drop oder Rechtsklick -> Move to folder)
 - Settings-Fenster fuer API-Key, Base-URL, Model-Liste und Hotkey
+  - Startet automatisch, wenn noch kein API-Key gesetzt ist
 
 ### Start (Desktop App)
 ```powershell
 dotnet build .\NeleOpenAIProxy.sln
-dotnet run --project .\NeleDesktop\NeleDesktop.csproj
+dotnet run --project .\Clients\NeleDesktop\NeleDesktop.csproj
 ```
 
 ### Desktop-Konfiguration
@@ -49,7 +54,7 @@ Beispiel `settings.json`:
 ```
 
 ## Konfiguration
-Lege `appsettings.Local.json` im gleichen Ordner wie die EXE ab (oder nutze `appsettings.json`).
+Lege `appsettings.Local.json` im gleichen Ordner wie die EXE ab (oder nutze `appsettings.json`). Im Repo liegen die Proxy-Configs unter `Proxy/`.
 
 Beispiel:
 ```json
@@ -65,7 +70,7 @@ Beispiel:
 
 ## Start
 ```powershell
-cd .\bin\Release\net9.0\win-x64\publish
+cd .\Proxy\bin\Release\net9.0\win-x64\publish
 .\NeleOpenAIProxy.exe
 ```
 
