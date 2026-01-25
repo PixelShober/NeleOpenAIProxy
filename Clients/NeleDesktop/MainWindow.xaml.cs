@@ -122,6 +122,11 @@ public partial class MainWindow : Window
     private void ConversationTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _dragStart = e.GetPosition(null);
+
+        if (GetAncestor<TreeViewItem>((DependencyObject)e.OriginalSource) is { DataContext: ChatFolderViewModel _ } treeViewItem)
+        {
+            treeViewItem.IsExpanded = !treeViewItem.IsExpanded;
+        }
     }
 
     private void ConversationTree_PreviewMouseMove(object sender, WpfMouseEventArgs e)

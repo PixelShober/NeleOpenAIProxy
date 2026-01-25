@@ -96,6 +96,29 @@
                                Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </Grid>
 
+                <TextBlock Text="Temporary chat model" FontWeight="SemiBold" Margin="0,16,0,0" />
+                <Grid Margin="0,6,0,0">
+                    <ComboBox ItemsSource="{Binding Models}"
+                              SelectedItem="{Binding TemporaryModel}"
+                              IsEnabled="{Binding IsModelSelectionEnabled}">
+                        <ComboBox.Style>
+                            <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsModelSelectionEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.6" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ComboBox.Style>
+                    </ComboBox>
+                    <TextBlock Text="{Binding ModelPlaceholder}"
+                               Margin="12,0,0,0"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+
                 <TextBlock Text="Hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
                 <TextBox Margin="0,6,0,0"
                          Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"

@@ -26,6 +26,11 @@ public partial class SettingsWindow : Window
 
     private async void ApiKey_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (sender is System.Windows.Controls.TextBox textBox && !textBox.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
         _apiKeyLoadCts?.Cancel();
 
         var cts = new CancellationTokenSource();

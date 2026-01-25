@@ -340,6 +340,8 @@
         <Setter Property="HasDropShadow" Value="True" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="MinWidth" Value="200" />
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
@@ -356,6 +358,7 @@
     </Style>
 
     <Style TargetType="MenuItem">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Padding" Value="12,8" />
@@ -363,33 +366,45 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="MenuItem">
-                    <Border x:Name="MenuBorder"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="8"
-                            Padding="{TemplateBinding Padding}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="20" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="CheckMark"
-                                       Grid.Column="0"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       Text="&#xE73E;"
-                                       Foreground="{DynamicResource AccentBrush}"
-                                       VerticalAlignment="Center"
-                                       Visibility="Collapsed" />
-                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       Text="&#xE70D;"
-                                       Foreground="{DynamicResource ChevronBrush}"
-                                       Visibility="{Binding HasItems, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                       Margin="12,0,0,0"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-                    </Border>
+                    <Grid>
+                        <Border x:Name="MenuBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="CheckMark"
+                                           Grid.Column="0"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           Text="&#xE73E;"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                                <ContentPresenter Grid.Column="1"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="SubmenuPopup"
+                               Placement="Right"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               IsOpen="{TemplateBinding IsSubmenuOpen}"
+                               PopupAnimation="Fade">
+                            <Border Background="{DynamicResource PanelBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="6">
+                                <StackPanel IsItemsHost="True" />
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="MenuBorder" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
@@ -410,8 +425,17 @@
     </Style>
 
     <Style TargetType="Separator">
-        <Setter Property="Margin" Value="6,4" />
-        <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Margin" Value="6,6" />
         <Setter Property="Height" Value="1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Border Background="{DynamicResource BorderBrush}"
+                            Height="{TemplateBinding Height}"
+                            Opacity="0.7" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>

@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using System.Windows.Input;
 using NeleDesktop.Models;
 using NeleDesktop.Services;
@@ -14,6 +15,8 @@ namespace NeleDesktop.ViewModels;
 public sealed class MainViewModel : ObservableObject
 {
     private const double ExpandedSidebarWidth = 280;
+    private const double ExpandedMinWidth = 500;
+    private const double CompactMinWidth = 380;
 
     private readonly AppDataStore _dataStore = new();
     private readonly NeleApiClient _apiClient = new();
@@ -25,10 +28,14 @@ public sealed class MainViewModel : ObservableObject
     private ChatConversationViewModel? _selectedChat;
     private string _inputText = string.Empty;
     private bool _isBusy;
+    private string _busyIndicatorText = "...";
     private string _statusMessage = string.Empty;
     private bool _isSidebarVisible = true;
     private double _sidebarWidth = ExpandedSidebarWidth;
     private ChatConversationViewModel? _temporaryChat;
+    private bool _wasSidebarVisibleBeforeTemp = true;
+    private readonly DispatcherTimer _busyIndicatorTimer;
+    private int _busyIndicatorDotIndex;
 
     public MainViewModel()
     {
@@ -37,6 +44,12 @@ public sealed class MainViewModel : ObservableObject
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, CanSendMessage);
         ToggleThemeCommand = new RelayCommand(ToggleTheme);
         ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
+
+        _busyIndicatorTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(350)
+        };
+        _busyIndicatorTimer.Tick += (_, _) => AdvanceBusyIndicator();
     }
 
     public event EventHandler? HotkeyChanged;
@@ -102,9 +115,27 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _isBusy, value))
             {
+                if (value)
+                {
+                    _busyIndicatorDotIndex = 0;
+                    AdvanceBusyIndicator();
+                    _busyIndicatorTimer.Start();
+                }
+                else
+                {
+                    _busyIndicatorTimer.Stop();
+                    BusyIndicatorText = "...";
+                }
+
                 RaiseSendCanExecuteChanged();
             }
         }
+    }
+
+    public string BusyIndicatorText
+    {
+        get => _busyIndicatorText;
+        private set => SetProperty(ref _busyIndicatorText, value);
     }
 
     public string StatusMessage
@@ -121,6 +152,7 @@ public sealed class MainViewModel : ObservableObject
             if (SetProperty(ref _isSidebarVisible, value))
             {
                 SidebarWidth = _isSidebarVisible ? ExpandedSidebarWidth : 0;
+                OnPropertyChanged(nameof(WindowMinWidth));
             }
         }
     }
@@ -131,7 +163,11 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _sidebarWidth, value);
     }
 
+    public double WindowMinWidth => IsSidebarVisible ? ExpandedMinWidth : CompactMinWidth;
+
     public bool IsApiKeyMissing => string.IsNullOrWhiteSpace(_settings.ApiKey);
+
+    public bool IsApiKeyAvailable => !IsApiKeyMissing;
 
     public bool IsDarkMode
     {
@@ -158,6 +194,7 @@ public sealed class MainViewModel : ObservableObject
         SeedAvailableModels();
         BuildViewModels();
         OnPropertyChanged(nameof(IsApiKeyMissing));
+        OnPropertyChanged(nameof(IsApiKeyAvailable));
 
         if (SelectedChat is null)
         {
@@ -190,6 +227,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(Settings));
         OnPropertyChanged(nameof(IsDarkMode));
         OnPropertyChanged(nameof(IsApiKeyMissing));
+        OnPropertyChanged(nameof(IsApiKeyAvailable));
         HotkeyChanged?.Invoke(this, EventArgs.Empty);
         await _dataStore.SaveSettingsAsync(_settings);
 
@@ -375,13 +413,16 @@ public sealed class MainViewModel : ObservableObject
         if (_temporaryChat is not null)
         {
             SelectedChat = _temporaryChat;
+            IsSidebarVisible = false;
             return;
         }
 
+        _wasSidebarVisibleBeforeTemp = IsSidebarVisible;
+        IsSidebarVisible = false;
         var chat = new ChatConversation
         {
             Title = "Temporary chat",
-            Model = ResolveDefaultModel(),
+            Model = ResolveTemporaryModel(),
             IsTemporary = true
         };
 
@@ -402,7 +443,9 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        var restoreSidebar = _wasSidebarVisibleBeforeTemp;
         DeleteChat(_temporaryChat);
+        IsSidebarVisible = restoreSidebar;
     }
 
     public void AddFolder(string name)
@@ -636,6 +679,19 @@ public sealed class MainViewModel : ObservableObject
         return AvailableModels.FirstOrDefault() ?? GetFallbackModel();
     }
 
+    private string ResolveTemporaryModel()
+    {
+        if (!string.IsNullOrWhiteSpace(_settings.TemporaryChatModel))
+        {
+            if (AvailableModels.Count == 0 || AvailableModels.Contains(_settings.TemporaryChatModel))
+            {
+                return _settings.TemporaryChatModel;
+            }
+        }
+
+        return ResolveDefaultModel();
+    }
+
     private string GetFallbackModel()
     {
         return string.IsNullOrWhiteSpace(_settings.SelectedModel)
@@ -685,6 +741,12 @@ public sealed class MainViewModel : ObservableObject
             chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
             _ = _dataStore.SaveStateAsync(_state);
         }
+    }
+
+    private void AdvanceBusyIndicator()
+    {
+        _busyIndicatorDotIndex = (_busyIndicatorDotIndex % 3) + 1;
+        BusyIndicatorText = new string('.', _busyIndicatorDotIndex);
     }
 
     private void RemoveChatFromCollections(ChatConversationViewModel chat)
