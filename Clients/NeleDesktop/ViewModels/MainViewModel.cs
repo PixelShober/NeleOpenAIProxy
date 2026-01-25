@@ -174,7 +174,9 @@ public sealed class MainViewModel : ObservableObject
 
     public SettingsViewModel CreateSettingsViewModel()
     {
-        return new SettingsViewModel(_apiClient, _settings);
+        var viewModel = new SettingsViewModel(_apiClient, _settings);
+        viewModel.InitializeModels(AvailableModels);
+        return viewModel;
     }
 
     public async Task ApplySettingsAsync(SettingsViewModel settingsViewModel)

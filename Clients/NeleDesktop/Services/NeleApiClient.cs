@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -29,6 +30,11 @@ public sealed class NeleApiClient
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new UnauthorizedAccessException("API key unauthorized.");
+            }
+
             throw new InvalidOperationException($"Model request failed ({(int)response.StatusCode}). {payload}");
         }
 

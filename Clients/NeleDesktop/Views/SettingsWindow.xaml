@@ -64,14 +64,37 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
+                <TextBlock Text="{Binding ApiKeyErrorMessage}"
+                           Foreground="{DynamicResource AttentionBrush}"
+                           FontSize="11"
+                           Margin="0,6,0,0"
+                           Visibility="{Binding HasApiKeyError, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                 <TextBlock Text="Base URL" FontWeight="SemiBold" Margin="0,16,0,0" />
                 <TextBox Margin="0,6,0,0" Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Text="Model" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <ComboBox Margin="0,6,0,0"
-                          ItemsSource="{Binding Models}"
-                          SelectedItem="{Binding SelectedModel}" />
+                <TextBlock Text="Standard Model" FontWeight="SemiBold" Margin="0,16,0,0" />
+                <Grid Margin="0,6,0,0">
+                    <ComboBox ItemsSource="{Binding Models}"
+                              SelectedItem="{Binding SelectedModel}"
+                              IsEnabled="{Binding IsModelSelectionEnabled}">
+                        <ComboBox.Style>
+                            <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsModelSelectionEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.6" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ComboBox.Style>
+                    </ComboBox>
+                    <TextBlock Text="{Binding ModelPlaceholder}"
+                               Margin="12,0,0,0"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
 
                 <TextBlock Text="Hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
                 <TextBox Margin="0,6,0,0"

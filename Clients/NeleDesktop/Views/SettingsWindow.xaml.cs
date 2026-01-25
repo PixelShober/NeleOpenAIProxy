@@ -22,25 +22,11 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = _viewModel;
-        Loaded += SettingsWindow_Loaded;
-    }
-
-    private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
-    {
-        if (!string.IsNullOrWhiteSpace(_viewModel.ApiKey) && _viewModel.Models.Count == 0)
-        {
-            await _viewModel.LoadModelsAsync(CancellationToken.None);
-        }
     }
 
     private async void ApiKey_TextChanged(object sender, TextChangedEventArgs e)
     {
         _apiKeyLoadCts?.Cancel();
-
-        if (string.IsNullOrWhiteSpace(_viewModel.ApiKey))
-        {
-            return;
-        }
 
         var cts = new CancellationTokenSource();
         _apiKeyLoadCts = cts;

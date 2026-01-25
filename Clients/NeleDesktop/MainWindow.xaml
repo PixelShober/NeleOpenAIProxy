@@ -10,6 +10,7 @@
         Background="{DynamicResource WindowBackgroundBrush}"
         FontFamily="Segoe UI Variable"
         Loaded="Window_Loaded"
+        PreviewKeyDown="Window_PreviewKeyDown"
         SourceInitialized="Window_SourceInitialized"
         Closing="Window_Closing"
         StateChanged="Window_StateChanged"
@@ -52,7 +53,7 @@
                             Command="{Binding ToggleThemeCommand}"
                             ToolTip="Toggle theme"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource AccentBrush}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="&#xE708;" />
@@ -146,7 +147,7 @@
                               Drop="ConversationTree_Drop">
                         <TreeView.Resources>
                             <HierarchicalDataTemplate DataType="{x:Type vm:ChatFolderViewModel}" ItemsSource="{Binding Chats}">
-                                <Grid>
+                                <Grid Background="Transparent" HorizontalAlignment="Stretch">
                                     <Grid.ContextMenu>
                                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                             <MenuItem Header="Rename folder" Click="RenameFolder_Click" />
@@ -176,7 +177,7 @@
                             </HierarchicalDataTemplate>
 
                             <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
-                                <Grid>
+                                <Grid Background="Transparent" HorizontalAlignment="Stretch">
                                     <Grid.ContextMenu>
                                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                             <MenuItem Header="Rename chat" Click="RenameChat_Click" />
@@ -214,6 +215,7 @@
                                 <Setter Property="Padding" Value="0" />
                                 <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                 <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                                 <Setter Property="IsExpanded" Value="True" />
                                 <Setter Property="Template">
@@ -242,9 +244,9 @@
                                                                       IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
                                                                       Visibility="{Binding HasItems, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                                       Focusable="False">
-                                                            <TextBlock FontFamily="Segoe MDL2 Assets"
-                                                                       FontSize="12"
-                                                                       Foreground="{DynamicResource SecondaryTextBrush}">
+                                                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                                   FontSize="12"
+                                                                   Foreground="{DynamicResource ChevronBrush}">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
                                                                         <Setter Property="Text" Value="&#xE70D;" />
@@ -394,10 +396,19 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:ChatMessage}">
                                     <StackPanel Margin="0,6" HorizontalAlignment="{Binding Role, Converter={StaticResource MessageAlignmentConverter}}">
-                                        <Border Background="{Binding Role, Converter={StaticResource MessageBubbleBrushConverter}}"
-                                                CornerRadius="16"
+                                        <Border CornerRadius="16"
                                                 Padding="14"
                                                 MaxWidth="560">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{DynamicResource AssistantBubbleBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Role}" Value="user">
+                                                            <Setter Property="Background" Value="{DynamicResource UserBubbleBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
                                         </Border>
                                     </StackPanel>

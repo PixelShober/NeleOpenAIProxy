@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,9 @@ public sealed class SettingsViewModel : ObservableObject
     private bool _isDarkMode;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
+    private string _apiKeyErrorMessage = string.Empty;
+    private bool _isModelLoading;
+    private string _lastLoadedApiKey = string.Empty;
 
     public SettingsViewModel(NeleApiClient apiClient, AppSettings settings)
     {
@@ -30,6 +34,12 @@ public sealed class SettingsViewModel : ObservableObject
         _temporaryHotkey = settings.TemporaryHotkey;
         _isDarkMode = settings.DarkMode;
         _statusMessage = string.IsNullOrWhiteSpace(_apiKey) ? "Enter an API key to load models." : string.Empty;
+        Models.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ModelPlaceholder));
+            OnPropertyChanged(nameof(IsModelPlaceholderVisible));
+            OnPropertyChanged(nameof(IsModelSelectionEnabled));
+        };
     }
 
     public ObservableCollection<string> Models { get; } = new();
@@ -37,7 +47,22 @@ public sealed class SettingsViewModel : ObservableObject
     public string ApiKey
     {
         get => _apiKey;
-        set => SetProperty(ref _apiKey, value);
+        set
+        {
+            if (SetProperty(ref _apiKey, value))
+            {
+                ApiKeyErrorMessage = string.Empty;
+                if (string.IsNullOrWhiteSpace(_apiKey))
+                {
+                    _lastLoadedApiKey = string.Empty;
+                    Models.Clear();
+                }
+
+                OnPropertyChanged(nameof(ModelPlaceholder));
+                OnPropertyChanged(nameof(IsModelPlaceholderVisible));
+                OnPropertyChanged(nameof(IsModelSelectionEnabled));
+            }
+        }
     }
 
     public string BaseUrl
@@ -82,6 +107,59 @@ public sealed class SettingsViewModel : ObservableObject
         set => SetProperty(ref _statusMessage, value);
     }
 
+    public string ApiKeyErrorMessage
+    {
+        get => _apiKeyErrorMessage;
+        set
+        {
+            if (SetProperty(ref _apiKeyErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasApiKeyError));
+                OnPropertyChanged(nameof(IsModelSelectionEnabled));
+            }
+        }
+    }
+
+    public bool HasApiKeyError => !string.IsNullOrWhiteSpace(ApiKeyErrorMessage);
+
+    public bool IsModelLoading
+    {
+        get => _isModelLoading;
+        private set
+        {
+            if (SetProperty(ref _isModelLoading, value))
+            {
+                OnPropertyChanged(nameof(ModelPlaceholder));
+                OnPropertyChanged(nameof(IsModelPlaceholderVisible));
+                OnPropertyChanged(nameof(IsModelSelectionEnabled));
+            }
+        }
+    }
+
+    public bool IsModelSelectionEnabled => !IsModelLoading
+        && !string.IsNullOrWhiteSpace(ApiKey)
+        && !HasApiKeyError;
+
+    public string ModelPlaceholder
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(ApiKey))
+            {
+                return "API Key erforderlich";
+            }
+
+            if (IsModelLoading)
+            {
+                return "Model Liste wird geladen";
+            }
+
+            return string.Empty;
+        }
+    }
+
+    public bool IsModelPlaceholderVisible => !string.IsNullOrWhiteSpace(ModelPlaceholder);
+
     public async Task LoadModelsAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(ApiKey))
@@ -90,7 +168,14 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
+        if (string.Equals(ApiKey, _lastLoadedApiKey, StringComparison.Ordinal) && Models.Count > 0 && !HasApiKeyError)
+        {
+            return;
+        }
+
         IsBusy = true;
+        IsModelLoading = true;
+        ApiKeyErrorMessage = string.Empty;
         StatusMessage = "Validating models...";
         try
         {
@@ -107,6 +192,13 @@ public sealed class SettingsViewModel : ObservableObject
             }
 
             StatusMessage = $"Loaded {Models.Count} models.";
+            _lastLoadedApiKey = ApiKey;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Models.Clear();
+            ApiKeyErrorMessage = "API Key ungültig oder nicht autorisiert.";
+            StatusMessage = string.Empty;
         }
         catch (Exception ex)
         {
@@ -115,7 +207,36 @@ public sealed class SettingsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            IsModelLoading = false;
         }
+    }
+
+    public void InitializeModels(IEnumerable<string> models)
+    {
+        if (models is null)
+        {
+            return;
+        }
+
+        Models.Clear();
+        foreach (var model in models)
+        {
+            Models.Add(model);
+        }
+
+        if (Models.Count > 0 && (string.IsNullOrWhiteSpace(SelectedModel) || !Models.Contains(SelectedModel)))
+        {
+            SelectedModel = Models[0];
+        }
+
+        if (Models.Count > 0 && !string.IsNullOrWhiteSpace(ApiKey))
+        {
+            _lastLoadedApiKey = ApiKey;
+        }
+
+        OnPropertyChanged(nameof(ModelPlaceholder));
+        OnPropertyChanged(nameof(IsModelPlaceholderVisible));
+        OnPropertyChanged(nameof(IsModelSelectionEnabled));
     }
 
     public AppSettings ToSettings()

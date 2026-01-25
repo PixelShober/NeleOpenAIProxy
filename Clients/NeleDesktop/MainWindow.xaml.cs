@@ -285,13 +285,27 @@ public partial class MainWindow : Window
 
     private void InputBox_KeyDown(object sender, WpfKeyEventArgs e)
     {
-        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
+        if (e.Key == Key.Enter && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
         {
             if (_viewModel.SendMessageCommand.CanExecute(null))
             {
                 _viewModel.SendMessageCommand.Execute(null);
                 e.Handled = true;
             }
+        }
+    }
+
+    private void Window_PreviewKeyDown(object sender, WpfKeyEventArgs e)
+    {
+        if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            HideToTray();
+            e.Handled = true;
         }
     }
 
