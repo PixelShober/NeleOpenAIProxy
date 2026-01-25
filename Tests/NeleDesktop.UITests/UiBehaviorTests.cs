@@ -320,6 +320,8 @@ public sealed class UiBehaviorTests
             UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
             var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
             var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.Show();
+            UiTestHelpers.DoEvents();
             window.ApplyTemplate();
             window.Measure(new Size(520, 520));
             window.Arrange(new Rect(0, 0, 520, 520));
@@ -328,6 +330,31 @@ public sealed class UiBehaviorTests
             var label = UiTestHelpers.FindLogicalChild<TextBlock>(window, text => string.Equals(text.Text, "Temporary chat hotkey", StringComparison.OrdinalIgnoreCase))
                 ?? UiTestHelpers.FindVisualChild<TextBlock>(window, text => string.Equals(text.Text, "Temporary chat hotkey", StringComparison.OrdinalIgnoreCase));
             Assert.IsNotNull(label, "Temporary chat hotkey label is missing.");
+        });
+    }
+
+    [TestMethod]
+    public void SettingsWindow_HotkeyFieldsAreReadOnly()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.ApplyTemplate();
+            window.Measure(new Size(520, 520));
+            window.Arrange(new Rect(0, 0, 520, 520));
+            window.UpdateLayout();
+
+            var hotkeyBox = window.FindName("HotkeyInput") as TextBox;
+            var tempHotkeyBox = window.FindName("TemporaryHotkeyInput") as TextBox;
+
+            Assert.IsNotNull(hotkeyBox, "Hotkey TextBox not found.");
+            Assert.IsNotNull(tempHotkeyBox, "Temporary hotkey TextBox not found.");
+            Assert.IsTrue(hotkeyBox.IsReadOnly, "Hotkey TextBox should be read-only.");
+            Assert.IsTrue(tempHotkeyBox.IsReadOnly, "Temporary hotkey TextBox should be read-only.");
+
+            window.Close();
         });
     }
 

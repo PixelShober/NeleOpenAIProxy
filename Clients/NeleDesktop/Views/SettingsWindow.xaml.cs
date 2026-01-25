@@ -95,6 +95,16 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void Hotkey_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        SetHotkeyCapture(true);
+    }
+
+    private void Hotkey_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        SetHotkeyCapture(false);
+    }
+
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is DependencyObject source
@@ -175,6 +185,14 @@ public partial class SettingsWindow : Window
 
         var converter = new KeyConverter();
         return converter.ConvertToString(key) ?? key.ToString();
+    }
+
+    private void SetHotkeyCapture(bool isActive)
+    {
+        if (Owner is MainWindow mainWindow)
+        {
+            mainWindow.SetHotkeyCaptureActive(isActive);
+        }
     }
 }
 

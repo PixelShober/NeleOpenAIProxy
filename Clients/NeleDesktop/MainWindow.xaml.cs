@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private ObservableCollection<ChatMessage>? _activeMessages;
     private double? _widthBeforeTemporaryChat;
     private SettingsWindow? _settingsWindow;
+    private bool _isHotkeyCaptureActive;
 
     public MainWindow()
     {
@@ -75,8 +76,24 @@ public partial class MainWindow : Window
         _temporaryHotkeyService = new HotkeyService(this);
         _hotkeyService.Initialize();
         _temporaryHotkeyService.Initialize();
-        _hotkeyService.HotkeyPressed += (_, _) => ToggleVisibility();
-        _temporaryHotkeyService.HotkeyPressed += (_, _) => OpenTemporaryChat();
+        _hotkeyService.HotkeyPressed += (_, _) =>
+        {
+            if (_isHotkeyCaptureActive)
+            {
+                return;
+            }
+
+            ToggleVisibility();
+        };
+        _temporaryHotkeyService.HotkeyPressed += (_, _) =>
+        {
+            if (_isHotkeyCaptureActive)
+            {
+                return;
+            }
+
+            OpenTemporaryChat();
+        };
         ApplyHotkey();
     }
 
@@ -300,7 +317,11 @@ public partial class MainWindow : Window
             Owner = this
         };
         _settingsWindow = dialog;
-        dialog.Closed += (_, _) => _settingsWindow = null;
+        dialog.Closed += (_, _) =>
+        {
+            _settingsWindow = null;
+            _isHotkeyCaptureActive = false;
+        };
 
         if (dialog.ShowDialog() == true)
         {
@@ -598,6 +619,11 @@ public partial class MainWindow : Window
                 }
             });
         }
+    }
+
+    public void SetHotkeyCaptureActive(bool isActive)
+    {
+        _isHotkeyCaptureActive = isActive;
     }
 
     private void ApplyTemporaryWidth()

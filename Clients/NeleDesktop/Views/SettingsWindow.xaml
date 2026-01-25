@@ -120,15 +120,21 @@
                 </Grid>
 
                 <TextBlock Text="Hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <TextBox Margin="0,6,0,0"
+                <TextBox x:Name="HotkeyInput"
+                         Margin="0,6,0,0"
                          Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
                          PreviewKeyDown="Hotkey_PreviewKeyDown"
+                         GotKeyboardFocus="Hotkey_GotKeyboardFocus"
+                         LostKeyboardFocus="Hotkey_LostKeyboardFocus"
                          IsReadOnly="True" />
 
                 <TextBlock Text="Temporary chat hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <TextBox Margin="0,6,0,0"
+                <TextBox x:Name="TemporaryHotkeyInput"
+                         Margin="0,6,0,0"
                          Text="{Binding TemporaryHotkey, UpdateSourceTrigger=PropertyChanged}"
                          PreviewKeyDown="TemporaryHotkey_PreviewKeyDown"
+                         GotKeyboardFocus="Hotkey_GotKeyboardFocus"
+                         LostKeyboardFocus="Hotkey_LostKeyboardFocus"
                          IsReadOnly="True" />
 
                 <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,16,0,0" TextWrapping="Wrap" />
