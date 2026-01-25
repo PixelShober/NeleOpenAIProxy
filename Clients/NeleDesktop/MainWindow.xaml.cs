@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private HotkeyService? _temporaryHotkeyService;
     private WpfPoint _dragStart;
     private ObservableCollection<ChatMessage>? _activeMessages;
+    private double? _widthBeforeTemporaryChat;
 
     public MainWindow()
     {
@@ -285,23 +286,25 @@ public partial class MainWindow : Window
         {
             SaveWindowPlacement();
             _viewModel.ClearTemporaryChat();
+            RestoreTemporaryWidth();
         }
     }
 
     private void InputBox_KeyDown(object sender, WpfKeyEventArgs e)
     {
-        if (e.Key == Key.Enter && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        if (e.Key is Key.Enter or Key.Return)
         {
-            return;
-        }
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                return;
+            }
 
-        if (e.Key == Key.Enter)
-        {
             if (_viewModel.SendMessageCommand.CanExecute(null))
             {
                 _viewModel.SendMessageCommand.Execute(null);
-                e.Handled = true;
             }
+
+            e.Handled = true;
         }
     }
 
@@ -438,8 +441,14 @@ public partial class MainWindow : Window
 
     private void OpenTemporaryChat()
     {
+        if (_widthBeforeTemporaryChat is null)
+        {
+            _widthBeforeTemporaryChat = Width;
+        }
+
         _viewModel.OpenTemporaryChat();
         ShowFromTray();
+        ApplyTemporaryWidth();
     }
 
     public void ShowFromTray()
@@ -456,7 +465,33 @@ public partial class MainWindow : Window
     {
         ShowInTaskbar = false;
         _viewModel.ClearTemporaryChat();
+        RestoreTemporaryWidth();
         Hide();
+    }
+
+    private void ApplyTemporaryWidth()
+    {
+        if (_viewModel.IsSidebarVisible)
+        {
+            return;
+        }
+
+        Width = Math.Min(Width, _viewModel.CompactWindowWidth);
+    }
+
+    private void RestoreTemporaryWidth()
+    {
+        if (_widthBeforeTemporaryChat is null)
+        {
+            return;
+        }
+
+        if (WindowState == WindowState.Normal)
+        {
+            Width = _widthBeforeTemporaryChat.Value;
+        }
+
+        _widthBeforeTemporaryChat = null;
     }
 
     private void ApplyWindowPlacement()

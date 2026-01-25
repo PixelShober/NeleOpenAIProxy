@@ -143,6 +143,7 @@
                               Margin="12,0,12,12"
                               Background="Transparent"
                               BorderThickness="0"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               AllowDrop="True"
                               ItemsSource="{Binding ConversationItems}"
                               SelectedItemChanged="ConversationTree_SelectedItemChanged"
@@ -152,10 +153,10 @@
                         <TreeView.Resources>
                             <HierarchicalDataTemplate DataType="{x:Type vm:ChatFolderViewModel}" ItemsSource="{Binding Chats}">
                                 <Grid Background="Transparent"
-                                      HorizontalAlignment="Stretch"
-                                      Width="{Binding RelativeSource={RelativeSource AncestorType=TreeViewItem}, Path=ActualWidth}">
+                                      HorizontalAlignment="Stretch">
                                     <Grid.ContextMenu>
-                                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <ContextMenu Placement="MousePoint"
+                                                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                             <MenuItem Header="Rename folder" Click="RenameFolder_Click" />
                                             <Separator />
                                             <MenuItem Header="Delete folder" Click="DeleteFolder_Click" />
@@ -177,7 +178,9 @@
                                               StrokeStartLineCap="Round"
                                               StrokeEndLineCap="Round"
                                               Fill="Transparent" />
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Name}"
+                                                   Foreground="{DynamicResource PrimaryTextBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                     <Border Grid.Column="1"
                                             Padding="6,2"
@@ -194,10 +197,10 @@
 
                             <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
                                 <Grid Background="Transparent"
-                                      HorizontalAlignment="Stretch"
-                                      Width="{Binding RelativeSource={RelativeSource AncestorType=TreeViewItem}, Path=ActualWidth}">
+                                      HorizontalAlignment="Stretch">
                                     <Grid.ContextMenu>
-                                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <ContextMenu Placement="MousePoint"
+                                                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                             <MenuItem Header="Rename chat" Click="RenameChat_Click" />
                                             <MenuItem Header="Move to folder"
                                                       Tag="{Binding}"
@@ -212,7 +215,9 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BD;" Margin="0,0,8,0" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Title}"
+                                                   Foreground="{DynamicResource PrimaryTextBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                     <Border Grid.Column="1"
                                             Padding="6,2"
@@ -341,17 +346,10 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
-                        </StackPanel>
-                        <ComboBox Grid.Column="1"
-                                  Width="220"
-                                  VerticalAlignment="Center"
+                    <StackPanel>
+                        <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
+                        <ComboBox Width="240"
+                                  Margin="0,10,0,0"
                                   ItemsSource="{Binding AvailableModels}"
                                   SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
                             <ComboBox.Style>
@@ -364,7 +362,7 @@
                                 </Style>
                             </ComboBox.Style>
                         </ComboBox>
-                    </Grid>
+                    </StackPanel>
                 </Border>
 
                 <ScrollViewer x:Name="ChatScrollViewer"
@@ -399,7 +397,17 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                                            <TextBox Text="{Binding Content}"
+                                                     TextWrapping="Wrap"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Padding="0"
+                                                     IsReadOnly="True"
+                                                     IsReadOnlyCaretVisible="False"
+                                                     AcceptsReturn="True"
+                                                     VerticalScrollBarVisibility="Hidden"
+                                                     HorizontalScrollBarVisibility="Hidden"
+                                                     Cursor="IBeam" />
                                         </Border>
                                     </StackPanel>
                                 </DataTemplate>
@@ -443,7 +451,7 @@
                                  TextWrapping="Wrap"
                                  BorderThickness="0"
                                  Background="Transparent"
-                                 KeyDown="InputBox_KeyDown" />
+                                 PreviewKeyDown="InputBox_KeyDown" />
                         <Button Grid.Column="1"
                                 Margin="10,0,2,0"
                                 Style="{StaticResource SendButtonStyle}"

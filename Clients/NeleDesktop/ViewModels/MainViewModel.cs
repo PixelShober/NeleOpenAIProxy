@@ -16,7 +16,8 @@ public sealed class MainViewModel : ObservableObject
 {
     private const double ExpandedSidebarWidth = 280;
     private const double ExpandedMinWidth = 500;
-    private const double CompactMinWidth = 380;
+    private const double CompactMinWidth = 320;
+    private const double CompactWindowWidthValue = 380;
 
     private readonly AppDataStore _dataStore = new();
     private readonly NeleApiClient _apiClient = new();
@@ -47,7 +48,7 @@ public sealed class MainViewModel : ObservableObject
 
         _busyIndicatorTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(350)
+            Interval = TimeSpan.FromSeconds(1)
         };
         _busyIndicatorTimer.Tick += (_, _) => AdvanceBusyIndicator();
     }
@@ -164,6 +165,8 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public double WindowMinWidth => IsSidebarVisible ? ExpandedMinWidth : CompactMinWidth;
+
+    public double CompactWindowWidth => CompactWindowWidthValue;
 
     public bool IsApiKeyMissing => string.IsNullOrWhiteSpace(_settings.ApiKey);
 

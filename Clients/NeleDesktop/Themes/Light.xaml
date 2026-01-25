@@ -395,13 +395,18 @@
                                AllowsTransparency="True"
                                Focusable="False"
                                IsOpen="{TemplateBinding IsSubmenuOpen}"
-                               PopupAnimation="Fade">
+                               PopupAnimation="Fade"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                               HorizontalOffset="6"
+                               VerticalOffset="-6">
                             <Border Background="{DynamicResource PanelBackgroundBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="10"
                                     Padding="6">
-                                <StackPanel IsItemsHost="True" />
+                                <ScrollViewer CanContentScroll="True" MaxHeight="320">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>

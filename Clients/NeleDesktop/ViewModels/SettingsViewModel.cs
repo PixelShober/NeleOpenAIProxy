@@ -51,7 +51,7 @@ public sealed class SettingsViewModel : ObservableObject
 
         _modelLoadingTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(350)
+            Interval = TimeSpan.FromSeconds(1)
         };
         _modelLoadingTimer.Tick += (_, _) => AdvanceModelLoadingDots();
     }
@@ -70,6 +70,8 @@ public sealed class SettingsViewModel : ObservableObject
                 {
                     _lastLoadedApiKey = string.Empty;
                     Models.Clear();
+                    SelectedModel = string.Empty;
+                    TemporaryModel = string.Empty;
                 }
 
                 OnPropertyChanged(nameof(ModelPlaceholder));
@@ -257,6 +259,17 @@ public sealed class SettingsViewModel : ObservableObject
         }
 
         Models.Clear();
+
+        if (string.IsNullOrWhiteSpace(ApiKey))
+        {
+            SelectedModel = string.Empty;
+            TemporaryModel = string.Empty;
+            OnPropertyChanged(nameof(ModelPlaceholder));
+            OnPropertyChanged(nameof(IsModelPlaceholderVisible));
+            OnPropertyChanged(nameof(IsModelSelectionEnabled));
+            return;
+        }
+
         foreach (var model in models)
         {
             Models.Add(model);
