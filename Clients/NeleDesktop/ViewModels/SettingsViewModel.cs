@@ -51,7 +51,7 @@ public sealed class SettingsViewModel : ObservableObject
 
         _modelLoadingTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(1)
+            Interval = TimeSpan.FromMilliseconds(500)
         };
         _modelLoadingTimer.Tick += (_, _) => AdvanceModelLoadingDots();
     }

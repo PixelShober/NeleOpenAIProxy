@@ -41,10 +41,10 @@
 
         <StackPanel Grid.Row="1" Margin="20" Width="360">
             <TextBlock x:Name="PromptText" Text="Prompt" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <TextBox x:Name="InputBox" />
+            <TextBox x:Name="InputBox" KeyDown="InputBox_KeyDown" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
                 <Button Content="Cancel" Click="Cancel_Click" Style="{StaticResource SecondaryButtonStyle}" MinWidth="90" />
-                <Button Content="OK" Click="Ok_Click" Margin="10,0,0,0" MinWidth="90" />
+                <Button Content="OK" Click="Ok_Click" Margin="10,0,0,0" MinWidth="90" IsDefault="True" />
             </StackPanel>
         </StackPanel>
     </Grid>

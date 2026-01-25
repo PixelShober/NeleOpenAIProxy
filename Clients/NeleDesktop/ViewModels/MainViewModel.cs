@@ -48,7 +48,7 @@ public sealed class MainViewModel : ObservableObject
 
         _busyIndicatorTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(1)
+            Interval = TimeSpan.FromMilliseconds(500)
         };
         _busyIndicatorTimer.Tick += (_, _) => AdvanceBusyIndicator();
     }

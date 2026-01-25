@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private WpfPoint _dragStart;
     private ObservableCollection<ChatMessage>? _activeMessages;
     private double? _widthBeforeTemporaryChat;
+    private SettingsWindow? _settingsWindow;
 
     public MainWindow()
     {
@@ -92,6 +93,7 @@ public partial class MainWindow : Window
 
     private void ToggleVisibility()
     {
+        CloseSettingsWindow();
         if (IsVisible)
         {
             HideToTray();
@@ -166,11 +168,59 @@ public partial class MainWindow : Window
         _viewModel.MoveChatToFolder(chat, folder);
     }
 
+    private void ConversationTree_PreviewKeyDown(object sender, WpfKeyEventArgs e)
+    {
+        if (ConversationTree.SelectedItem is ChatConversationViewModel chat)
+        {
+            if (e.Key == Key.F2)
+            {
+                RenameChat(chat);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Delete)
+            {
+                if (ConfirmDeleteChat(chat))
+                {
+                    _viewModel.DeleteChat(chat);
+                }
+
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (ConversationTree.SelectedItem is ChatFolderViewModel folder)
+        {
+            if (e.Key == Key.F2)
+            {
+                RenameFolder(folder);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Delete)
+            {
+                if (ConfirmDeleteFolder(folder))
+                {
+                    _viewModel.DeleteFolder(folder);
+                }
+
+                e.Handled = true;
+            }
+        }
+    }
+
     private void DeleteChat_Click(object sender, RoutedEventArgs e)
     {
         if (sender is MenuItem menuItem && menuItem.DataContext is ChatConversationViewModel chat)
         {
-            _viewModel.DeleteChat(chat);
+            if (ConfirmDeleteChat(chat))
+            {
+                _viewModel.DeleteChat(chat);
+            }
         }
     }
 
@@ -178,7 +228,10 @@ public partial class MainWindow : Window
     {
         if (sender is MenuItem menuItem && menuItem.DataContext is ChatFolderViewModel folder)
         {
-            _viewModel.DeleteFolder(folder);
+            if (ConfirmDeleteFolder(folder))
+            {
+                _viewModel.DeleteFolder(folder);
+            }
         }
     }
 
@@ -233,6 +286,8 @@ public partial class MainWindow : Window
         {
             Owner = this
         };
+        _settingsWindow = dialog;
+        dialog.Closed += (_, _) => _settingsWindow = null;
 
         if (dialog.ShowDialog() == true)
         {
@@ -321,11 +376,7 @@ public partial class MainWindow : Window
     {
         if (sender is MenuItem menuItem && menuItem.DataContext is ChatConversationViewModel chat)
         {
-            var name = PromptDialog.Show(this, "Rename chat", "Chat title:", chat.Title);
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                _viewModel.RenameChat(chat, name);
-            }
+            RenameChat(chat);
         }
     }
 
@@ -333,11 +384,7 @@ public partial class MainWindow : Window
     {
         if (sender is MenuItem menuItem && menuItem.DataContext is ChatFolderViewModel folder)
         {
-            var name = PromptDialog.Show(this, "Rename folder", "Folder name:", folder.Name);
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                _viewModel.RenameFolder(folder, name);
-            }
+            RenameFolder(folder);
         }
     }
 
@@ -377,6 +424,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void MoveToFolder_Open_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem)
+        {
+            menuItem.IsSubmenuOpen = true;
+        }
+    }
+
     private void MoveChatToFolder_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem || menuItem.CommandParameter is not ChatConversationViewModel chat)
@@ -387,6 +442,44 @@ public partial class MainWindow : Window
         var folderId = menuItem.Tag as string;
         var targetFolder = string.IsNullOrWhiteSpace(folderId) ? null : FindFolder(folderId);
         _viewModel.MoveChatToFolder(chat, targetFolder);
+    }
+
+    private void RenameChat(ChatConversationViewModel chat)
+    {
+        var name = PromptDialog.Show(this, "Rename chat", "Chat title:", chat.Title);
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            _viewModel.RenameChat(chat, name);
+        }
+    }
+
+    private void RenameFolder(ChatFolderViewModel folder)
+    {
+        var name = PromptDialog.Show(this, "Rename folder", "Folder name:", folder.Name);
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            _viewModel.RenameFolder(folder, name);
+        }
+    }
+
+    private bool ConfirmDeleteChat(ChatConversationViewModel chat)
+    {
+        var result = System.Windows.MessageBox.Show(this,
+            $"Delete chat \"{chat.Title}\"?",
+            "Delete chat",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private bool ConfirmDeleteFolder(ChatFolderViewModel folder)
+    {
+        var result = System.Windows.MessageBox.Show(this,
+            $"Delete folder \"{folder.Name}\"? Chats will move to Conversations.",
+            "Delete folder",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        return result == MessageBoxResult.Yes;
     }
 
     private void PromptNewFolder()
@@ -441,6 +534,7 @@ public partial class MainWindow : Window
 
     private void OpenTemporaryChat()
     {
+        CloseSettingsWindow();
         if (_widthBeforeTemporaryChat is null)
         {
             _widthBeforeTemporaryChat = Width;
@@ -467,6 +561,32 @@ public partial class MainWindow : Window
         _viewModel.ClearTemporaryChat();
         RestoreTemporaryWidth();
         Hide();
+    }
+
+    private void CloseSettingsWindow()
+    {
+        if (_settingsWindow is null)
+        {
+            return;
+        }
+
+        if (_settingsWindow.Dispatcher.CheckAccess())
+        {
+            if (_settingsWindow.IsVisible)
+            {
+                _settingsWindow.DialogResult = false;
+            }
+        }
+        else
+        {
+            _settingsWindow.Dispatcher.Invoke(() =>
+            {
+                if (_settingsWindow.IsVisible)
+                {
+                    _settingsWindow.DialogResult = false;
+                }
+            });
+        }
     }
 
     private void ApplyTemporaryWidth()

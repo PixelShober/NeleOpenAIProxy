@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -177,6 +178,57 @@ public sealed class UiBehaviorTests
             Assert.IsNotNull(parentStack, "Model ComboBox is not inside a StackPanel.");
             Assert.IsTrue(parentStack.Children.Count >= 2, "Header stack does not contain expected children.");
             Assert.IsInstanceOfType(parentStack.Children[0], typeof(TextBlock), "Title text is not above the model dropdown.");
+            Assert.AreEqual(HorizontalAlignment.Left, comboBox.HorizontalAlignment, "Model dropdown should be left aligned.");
+        });
+    }
+
+    [TestMethod]
+    public void MoveToFolderMenu_StaysOpenOnClick()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            var tree = window.FindName("ConversationTree") as TreeView;
+            Assert.IsNotNull(tree, "ConversationTree was not found.");
+
+            var chatTemplate = UiTestHelpers.FindTemplate(tree.Resources, typeof(ChatConversationViewModel));
+            Assert.IsNotNull(chatTemplate, "Chat template was not found.");
+            var chatRoot = chatTemplate.LoadContent() as FrameworkElement;
+            Assert.IsNotNull(chatRoot, "Chat template root was not created.");
+            Assert.IsNotNull(chatRoot.ContextMenu, "Chat context menu missing.");
+
+            var moveMenu = chatRoot.ContextMenu.Items.OfType<MenuItem>()
+                .FirstOrDefault(item => string.Equals(item.Header as string, "Move to folder", StringComparison.OrdinalIgnoreCase));
+            Assert.IsNotNull(moveMenu, "Move to folder menu item not found.");
+            Assert.IsTrue(moveMenu.StaysOpenOnClick, "Move to folder should stay open on click.");
+        });
+    }
+
+    [TestMethod]
+    public void PromptDialog_UsesDefaultOkButton()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var dialog = (Window?)Activator.CreateInstance(
+                typeof(NeleDesktop.Views.PromptDialog),
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null,
+                new object?[] { "Rename chat", "Chat title:", "Test" },
+                null);
+            Assert.IsNotNull(dialog, "PromptDialog could not be created.");
+            dialog.ApplyTemplate();
+            dialog.Measure(new Size(400, 200));
+            dialog.Arrange(new Rect(0, 0, 400, 200));
+            dialog.UpdateLayout();
+
+            var okButton = UiTestHelpers.FindLogicalChild<Button>(dialog, button => string.Equals(button.Content as string, "OK", StringComparison.OrdinalIgnoreCase))
+                ?? UiTestHelpers.FindVisualChild<Button>(dialog, button => string.Equals(button.Content as string, "OK", StringComparison.OrdinalIgnoreCase));
+            Assert.IsNotNull(okButton, "OK button not found on PromptDialog.");
+            Assert.IsTrue(okButton.IsDefault, "OK button should be default to allow Enter confirm.");
         });
     }
 

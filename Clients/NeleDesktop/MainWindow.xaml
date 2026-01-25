@@ -149,6 +149,7 @@
                               SelectedItemChanged="ConversationTree_SelectedItemChanged"
                               PreviewMouseLeftButtonDown="ConversationTree_PreviewMouseLeftButtonDown"
                               PreviewMouseMove="ConversationTree_PreviewMouseMove"
+                              PreviewKeyDown="ConversationTree_PreviewKeyDown"
                               Drop="ConversationTree_Drop">
                         <TreeView.Resources>
                             <HierarchicalDataTemplate DataType="{x:Type vm:ChatFolderViewModel}" ItemsSource="{Binding Chats}">
@@ -204,6 +205,8 @@
                                             <MenuItem Header="Rename chat" Click="RenameChat_Click" />
                                             <MenuItem Header="Move to folder"
                                                       Tag="{Binding}"
+                                                      StaysOpenOnClick="True"
+                                                      Click="MoveToFolder_Open_Click"
                                                       SubmenuOpened="MoveToFolder_SubmenuOpened" />
                                             <Separator />
                                             <MenuItem Header="Delete chat" Click="DeleteChat_Click" />
@@ -350,6 +353,8 @@
                         <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
                         <ComboBox Width="240"
                                   Margin="0,10,0,0"
+                                  HorizontalAlignment="Left"
+                                  HorizontalContentAlignment="Left"
                                   ItemsSource="{Binding AvailableModels}"
                                   SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
                             <ComboBox.Style>
@@ -384,8 +389,8 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:ChatMessage}">
                                     <StackPanel Margin="0,6" HorizontalAlignment="{Binding Role, Converter={StaticResource MessageAlignmentConverter}}">
-                                        <Border CornerRadius="16"
-                                                Padding="14"
+                                        <Border CornerRadius="14"
+                                                Padding="10,8"
                                                 MaxWidth="560">
                                             <Border.Style>
                                                 <Style TargetType="Border">
@@ -398,10 +403,14 @@
                                                 </Style>
                                             </Border.Style>
                                             <TextBox Text="{Binding Content}"
+                                                     Style="{x:Null}"
                                                      TextWrapping="Wrap"
+                                                     Foreground="{DynamicResource PrimaryTextBrush}"
                                                      Background="Transparent"
                                                      BorderThickness="0"
                                                      Padding="0"
+                                                     MinHeight="0"
+                                                     Margin="0"
                                                      IsReadOnly="True"
                                                      IsReadOnlyCaretVisible="False"
                                                      AcceptsReturn="True"

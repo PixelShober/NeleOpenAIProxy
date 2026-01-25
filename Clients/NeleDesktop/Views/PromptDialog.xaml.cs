@@ -38,6 +38,14 @@ public partial class PromptDialog : Window
         DialogResult = true;
     }
 
+    private void InputBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            DialogResult = true;
+        }
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
