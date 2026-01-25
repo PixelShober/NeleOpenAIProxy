@@ -29,4 +29,12 @@ public sealed class ChatFolderViewModel : ObservableObject
     }
 
     public ObservableCollection<ChatConversationViewModel> Chats { get; } = new();
+
+    private bool _isExpanded;
+
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set => SetProperty(ref _isExpanded, value);
+    }
 }

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using NeleDesktop;
 using NeleDesktop.ViewModels;
 
@@ -229,6 +230,104 @@ public sealed class UiBehaviorTests
                 ?? UiTestHelpers.FindVisualChild<Button>(dialog, button => string.Equals(button.Content as string, "OK", StringComparison.OrdinalIgnoreCase));
             Assert.IsNotNull(okButton, "OK button not found on PromptDialog.");
             Assert.IsTrue(okButton.IsDefault, "OK button should be default to allow Enter confirm.");
+        });
+    }
+
+    [TestMethod]
+    public void BusyIndicator_UsesPulseEllipse()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            if (window.DataContext is MainViewModel viewModel)
+            {
+                viewModel.IsBusy = true;
+            }
+
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var ellipse = window.FindName("BusyIndicatorPulse") as Ellipse;
+            Assert.IsNotNull(ellipse, "Busy indicator ellipse not found.");
+            Assert.IsInstanceOfType(ellipse.RenderTransform, typeof(ScaleTransform), "Busy indicator should use scale transform.");
+        });
+    }
+
+    [TestMethod]
+    public void ConfirmDialog_UsesThemeAndDefaultAction()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var dialog = (Window?)Activator.CreateInstance(
+                typeof(NeleDesktop.Views.ConfirmDialog),
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null,
+                new object?[] { "Delete chat", "Delete this chat?", "Delete" },
+                null);
+            Assert.IsNotNull(dialog, "ConfirmDialog could not be created.");
+            dialog.ApplyTemplate();
+            dialog.Measure(new Size(400, 200));
+            dialog.Arrange(new Rect(0, 0, 400, 200));
+            dialog.UpdateLayout();
+
+            var confirmButton = dialog.FindName("ConfirmButton") as Button;
+            Assert.IsNotNull(confirmButton, "Confirm button not found.");
+            Assert.IsTrue(confirmButton.IsDefault, "Confirm button should be default.");
+            Assert.AreEqual("Delete", confirmButton.Content);
+        });
+    }
+
+    [TestMethod]
+    public void TemporaryChatMenuItem_IsConditional()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            var tree = window.FindName("ConversationTree") as TreeView;
+            Assert.IsNotNull(tree, "ConversationTree was not found.");
+
+            var chatTemplate = UiTestHelpers.FindTemplate(tree.Resources, typeof(ChatConversationViewModel));
+            Assert.IsNotNull(chatTemplate, "Chat template was not found.");
+            var chatRoot = chatTemplate.LoadContent() as FrameworkElement;
+            Assert.IsNotNull(chatRoot, "Chat template root was not created.");
+            Assert.IsNotNull(chatRoot.ContextMenu, "Chat context menu missing.");
+
+            var convertMenu = chatRoot.ContextMenu.Items.OfType<MenuItem>()
+                .FirstOrDefault(item => string.Equals(item.Header as string, "Convert to regular chat", StringComparison.OrdinalIgnoreCase));
+            Assert.IsNotNull(convertMenu, "Convert to regular chat menu item not found.");
+
+            var binding = BindingOperations.GetBindingExpression(convertMenu, MenuItem.VisibilityProperty);
+            Assert.IsNotNull(binding, "Convert to regular chat menu should be visibility-bound.");
+        });
+    }
+
+    [TestMethod]
+    public void SettingsWindow_ShowsTemporaryHotkeyField()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.ApplyTemplate();
+            window.Measure(new Size(520, 520));
+            window.Arrange(new Rect(0, 0, 520, 520));
+            window.UpdateLayout();
+
+            var label = UiTestHelpers.FindLogicalChild<TextBlock>(window, text => string.Equals(text.Text, "Temporary chat hotkey", StringComparison.OrdinalIgnoreCase))
+                ?? UiTestHelpers.FindVisualChild<TextBlock>(window, text => string.Equals(text.Text, "Temporary chat hotkey", StringComparison.OrdinalIgnoreCase));
+            Assert.IsNotNull(label, "Temporary chat hotkey label is missing.");
         });
     }
 

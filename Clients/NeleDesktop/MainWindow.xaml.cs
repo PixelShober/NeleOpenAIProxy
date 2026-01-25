@@ -50,6 +50,11 @@ public partial class MainWindow : Window
             {
                 ScrollToEnd();
             }
+
+            if (args.PropertyName == nameof(MainViewModel.IsSidebarVisible))
+            {
+                AdjustWidthForSidebarToggle();
+            }
         };
     }
 
@@ -232,6 +237,14 @@ public partial class MainWindow : Window
             {
                 _viewModel.DeleteFolder(folder);
             }
+        }
+    }
+
+    private void ConvertTemporaryChat_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem && menuItem.DataContext is ChatConversationViewModel chat)
+        {
+            _viewModel.ConvertTemporaryChat(chat);
         }
     }
 
@@ -464,22 +477,20 @@ public partial class MainWindow : Window
 
     private bool ConfirmDeleteChat(ChatConversationViewModel chat)
     {
-        var result = System.Windows.MessageBox.Show(this,
-            $"Delete chat \"{chat.Title}\"?",
+        return ConfirmDialog.Show(
+            this,
             "Delete chat",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        return result == MessageBoxResult.Yes;
+            $"Delete chat \"{chat.Title}\"?",
+            "Delete");
     }
 
     private bool ConfirmDeleteFolder(ChatFolderViewModel folder)
     {
-        var result = System.Windows.MessageBox.Show(this,
-            $"Delete folder \"{folder.Name}\"? Chats will move to Conversations.",
+        return ConfirmDialog.Show(
+            this,
             "Delete folder",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        return result == MessageBoxResult.Yes;
+            $"Delete folder \"{folder.Name}\"? Chats will move to Conversations.",
+            "Delete");
     }
 
     private void PromptNewFolder()
@@ -612,6 +623,22 @@ public partial class MainWindow : Window
         }
 
         _widthBeforeTemporaryChat = null;
+    }
+
+    private void AdjustWidthForSidebarToggle()
+    {
+        if (_widthBeforeTemporaryChat is null)
+        {
+            return;
+        }
+
+        if (_viewModel.IsSidebarVisible)
+        {
+            Width = Math.Max(Width, _widthBeforeTemporaryChat.Value);
+            return;
+        }
+
+        ApplyTemporaryWidth();
     }
 
     private void ApplyWindowPlacement()

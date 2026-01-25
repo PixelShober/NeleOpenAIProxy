@@ -202,6 +202,9 @@
                                     <Grid.ContextMenu>
                                         <ContextMenu Placement="MousePoint"
                                                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                            <MenuItem Header="Convert to regular chat"
+                                                      Click="ConvertTemporaryChat_Click"
+                                                      Visibility="{Binding IsTemporary, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <MenuItem Header="Rename chat" Click="RenameChat_Click" />
                                             <MenuItem Header="Move to folder"
                                                       Tag="{Binding}"
@@ -243,7 +246,7 @@
                                 <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                 <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                <Setter Property="IsExpanded" Value="False" />
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="TreeViewItem">
@@ -422,14 +425,43 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Border Background="{DynamicResource AssistantBubbleBrush}"
+                        <Border x:Name="BusyIndicatorContainer"
+                                Background="{DynamicResource AssistantBubbleBrush}"
                                 CornerRadius="16"
-                                Padding="12,8"
-                                MaxWidth="160"
+                                Padding="10"
+                                MaxWidth="120"
                                 Margin="0,6,0,0"
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="{Binding BusyIndicatorText}" FontSize="18" Foreground="{DynamicResource SecondaryTextBrush}" />
+                            <Ellipse x:Name="BusyIndicatorPulse"
+                                     Width="10"
+                                     Height="10"
+                                     Fill="{DynamicResource SecondaryTextBrush}"
+                                     RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                                </Ellipse.RenderTransform>
+                                <Ellipse.Triggers>
+                                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 From="0.4"
+                                                                 To="1"
+                                                                 Duration="0:0:0.6" />
+                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                                 From="0.85"
+                                                                 To="1.2"
+                                                                 Duration="0:0:0.6" />
+                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                 From="0.85"
+                                                                 To="1.2"
+                                                                 Duration="0:0:0.6" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Ellipse.Triggers>
+                            </Ellipse>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

@@ -53,5 +53,16 @@ public sealed class ChatConversationViewModel : ObservableObject
         }
     }
 
-    public bool IsTemporary => Model.IsTemporary;
+    public bool IsTemporary
+    {
+        get => Model.IsTemporary;
+        set
+        {
+            if (Model.IsTemporary != value)
+            {
+                Model.IsTemporary = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 }

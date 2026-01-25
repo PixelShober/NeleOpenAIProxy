@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using System.Windows.Input;
 using NeleDesktop.Models;
 using NeleDesktop.Services;
@@ -29,15 +28,11 @@ public sealed class MainViewModel : ObservableObject
     private ChatConversationViewModel? _selectedChat;
     private string _inputText = string.Empty;
     private bool _isBusy;
-    private string _busyIndicatorText = "...";
     private string _statusMessage = string.Empty;
     private bool _isSidebarVisible = true;
     private double _sidebarWidth = ExpandedSidebarWidth;
     private ChatConversationViewModel? _temporaryChat;
     private bool _wasSidebarVisibleBeforeTemp = true;
-    private readonly DispatcherTimer _busyIndicatorTimer;
-    private int _busyIndicatorDotIndex;
-
     public MainViewModel()
     {
         NewChatCommand = new RelayCommand(CreateNewChat);
@@ -46,11 +41,6 @@ public sealed class MainViewModel : ObservableObject
         ToggleThemeCommand = new RelayCommand(ToggleTheme);
         ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
 
-        _busyIndicatorTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(500)
-        };
-        _busyIndicatorTimer.Tick += (_, _) => AdvanceBusyIndicator();
     }
 
     public event EventHandler? HotkeyChanged;
@@ -116,27 +106,9 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _isBusy, value))
             {
-                if (value)
-                {
-                    _busyIndicatorDotIndex = 0;
-                    AdvanceBusyIndicator();
-                    _busyIndicatorTimer.Start();
-                }
-                else
-                {
-                    _busyIndicatorTimer.Stop();
-                    BusyIndicatorText = "...";
-                }
-
                 RaiseSendCanExecuteChanged();
             }
         }
-    }
-
-    public string BusyIndicatorText
-    {
-        get => _busyIndicatorText;
-        private set => SetProperty(ref _busyIndicatorText, value);
     }
 
     public string StatusMessage
@@ -311,6 +283,24 @@ public sealed class MainViewModel : ObservableObject
         folder.Chats.Clear();
         Folders.Remove(folder);
         _state.Folders.Remove(folder.Model);
+        _ = _dataStore.SaveStateAsync(_state);
+        RebuildConversationItems();
+    }
+
+    public void ConvertTemporaryChat(ChatConversationViewModel chat)
+    {
+        if (chat is null || !chat.IsTemporary)
+        {
+            return;
+        }
+
+        chat.IsTemporary = false;
+        if (_temporaryChat == chat)
+        {
+            _temporaryChat = null;
+        }
+
+        chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
         _ = _dataStore.SaveStateAsync(_state);
         RebuildConversationItems();
     }
@@ -744,12 +734,6 @@ public sealed class MainViewModel : ObservableObject
             chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
             _ = _dataStore.SaveStateAsync(_state);
         }
-    }
-
-    private void AdvanceBusyIndicator()
-    {
-        _busyIndicatorDotIndex = (_busyIndicatorDotIndex % 3) + 1;
-        BusyIndicatorText = new string('.', _busyIndicatorDotIndex);
     }
 
     private void RemoveChatFromCollections(ChatConversationViewModel chat)
