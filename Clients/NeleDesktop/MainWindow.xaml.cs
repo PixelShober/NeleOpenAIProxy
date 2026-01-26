@@ -399,6 +399,29 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (Keyboard.Modifiers == ModifierKeys.Alt)
+        {
+            if (key == Key.N)
+            {
+                if (_viewModel.IsApiKeyAvailable)
+                {
+                    _viewModel.NewChatCommand.Execute(null);
+                }
+
+                e.Handled = true;
+                return;
+            }
+
+            if (key == Key.F)
+            {
+                _viewModel.NewFolderCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control)
         {
             HideToTray();
@@ -633,11 +656,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var left = Left;
+        var right = Left + Width;
         Width = Math.Min(Width, _viewModel.CompactWindowWidth);
         if (WindowState == WindowState.Normal)
         {
-            Left = left;
+            Left = right - Width;
         }
     }
 
@@ -650,9 +673,9 @@ public partial class MainWindow : Window
 
         if (WindowState == WindowState.Normal)
         {
-            var left = Left;
+            var right = Left + Width;
             Width = _widthBeforeTemporaryChat.Value;
-            Left = left;
+            Left = right - Width;
         }
 
         _widthBeforeTemporaryChat = null;
@@ -667,11 +690,11 @@ public partial class MainWindow : Window
 
         if (_viewModel.IsSidebarVisible)
         {
-            var left = Left;
+            var right = Left + Width;
             Width = Math.Max(Width, _widthBeforeTemporaryChat.Value);
             if (WindowState == WindowState.Normal)
             {
-                Left = left;
+                Left = right - Width;
             }
             return;
         }
