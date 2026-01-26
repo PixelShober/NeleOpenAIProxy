@@ -354,22 +354,34 @@
                     </Border.Style>
                     <StackPanel>
                         <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
-                        <ComboBox Width="240"
-                                  Margin="0,10,0,0"
-                                  HorizontalAlignment="Left"
-                                  HorizontalContentAlignment="Left"
-                                  ItemsSource="{Binding AvailableModels}"
-                                  SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
-                            <ComboBox.Style>
-                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
-                                            <Setter Property="IsEnabled" Value="False" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </ComboBox.Style>
-                        </ComboBox>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <ComboBox Width="240"
+                                      HorizontalAlignment="Left"
+                                      HorizontalContentAlignment="Left"
+                                      ItemsSource="{Binding AvailableModels}"
+                                      SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
+                                <ComboBox.Style>
+                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.Style>
+                            </ComboBox>
+                            <ToggleButton x:Name="WebSearchToggle"
+                                          Margin="10,0,0,0"
+                                          Style="{StaticResource PillToggleButtonStyle}"
+                                          ToolTip="Web search"
+                                          IsEnabled="{Binding IsApiKeyAvailable}"
+                                          IsChecked="{Binding SelectedChat.UseWebSearch, Mode=TwoWay}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE774;" FontSize="12" Margin="0,0,6,0" />
+                                    <TextBlock Text="Web" FontSize="12" />
+                                </StackPanel>
+                            </ToggleButton>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

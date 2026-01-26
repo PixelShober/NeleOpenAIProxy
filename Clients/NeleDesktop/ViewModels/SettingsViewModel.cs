@@ -18,6 +18,12 @@ public sealed class SettingsViewModel : ObservableObject
     private string _temporaryModel = string.Empty;
     private string _hotkey = string.Empty;
     private string _temporaryHotkey = string.Empty;
+    private bool _webSearchEnabled;
+    private string _webSearchLanguage = string.Empty;
+    private string _webSearchCountry = string.Empty;
+    private int _webSearchResults;
+    private int _webSearchQueriesMin;
+    private int _webSearchQueriesMax;
     private bool _isDarkMode;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
@@ -43,6 +49,12 @@ public sealed class SettingsViewModel : ObservableObject
         _hotkey = settings.Hotkey;
         _temporaryHotkey = settings.TemporaryHotkey;
         _isDarkMode = settings.DarkMode;
+        _webSearchEnabled = settings.WebSearchEnabled;
+        _webSearchLanguage = settings.WebSearchLanguage;
+        _webSearchCountry = settings.WebSearchCountry;
+        _webSearchResults = settings.WebSearchResults;
+        _webSearchQueriesMin = settings.WebSearchQueriesMin;
+        _webSearchQueriesMax = settings.WebSearchQueriesMax;
         _statusMessage = string.IsNullOrWhiteSpace(_apiKey) ? "Enter an API key to load models." : string.Empty;
         Models.CollectionChanged += (_, _) =>
         {
@@ -111,6 +123,42 @@ public sealed class SettingsViewModel : ObservableObject
     {
         get => _temporaryHotkey;
         set => SetProperty(ref _temporaryHotkey, value);
+    }
+
+    public bool WebSearchEnabled
+    {
+        get => _webSearchEnabled;
+        set => SetProperty(ref _webSearchEnabled, value);
+    }
+
+    public string WebSearchLanguage
+    {
+        get => _webSearchLanguage;
+        set => SetProperty(ref _webSearchLanguage, value);
+    }
+
+    public string WebSearchCountry
+    {
+        get => _webSearchCountry;
+        set => SetProperty(ref _webSearchCountry, value);
+    }
+
+    public int WebSearchResults
+    {
+        get => _webSearchResults;
+        set => SetProperty(ref _webSearchResults, value);
+    }
+
+    public int WebSearchQueriesMin
+    {
+        get => _webSearchQueriesMin;
+        set => SetProperty(ref _webSearchQueriesMin, value);
+    }
+
+    public int WebSearchQueriesMax
+    {
+        get => _webSearchQueriesMax;
+        set => SetProperty(ref _webSearchQueriesMax, value);
     }
 
     public bool IsDarkMode
@@ -353,7 +401,13 @@ public sealed class SettingsViewModel : ObservableObject
             TemporaryChatModel = TemporaryModel?.Trim() ?? string.Empty,
             Hotkey = Hotkey?.Trim() ?? string.Empty,
             TemporaryHotkey = TemporaryHotkey?.Trim() ?? string.Empty,
-            DarkMode = IsDarkMode
+            DarkMode = IsDarkMode,
+            WebSearchEnabled = WebSearchEnabled,
+            WebSearchLanguage = WebSearchLanguage?.Trim() ?? string.Empty,
+            WebSearchCountry = WebSearchCountry?.Trim() ?? string.Empty,
+            WebSearchResults = WebSearchResults,
+            WebSearchQueriesMin = WebSearchQueriesMin,
+            WebSearchQueriesMax = WebSearchQueriesMax
         };
     }
 

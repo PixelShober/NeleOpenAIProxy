@@ -171,14 +171,21 @@ public sealed class UiBehaviorTests
                 root.UpdateLayout();
             }
 
-            var comboBox = window.Content is DependencyObject rootElement
-                ? UiTestHelpers.FindVisualChild<ComboBox>(rootElement)
-                : null;
+            var rootElement = window.Content as DependencyObject;
+            Assert.IsNotNull(rootElement, "Root element not found.");
+
+            var comboBox = UiTestHelpers.FindVisualChild<ComboBox>(rootElement);
             Assert.IsNotNull(comboBox, "Model ComboBox not found.");
-            var parentStack = UiTestHelpers.FindVisualParent<StackPanel>(comboBox);
-            Assert.IsNotNull(parentStack, "Model ComboBox is not inside a StackPanel.");
-            Assert.IsTrue(parentStack.Children.Count >= 2, "Header stack does not contain expected children.");
-            Assert.IsInstanceOfType(parentStack.Children[0], typeof(TextBlock), "Title text is not above the model dropdown.");
+            var titleText = UiTestHelpers.FindVisualChild<TextBlock>(rootElement, tb => Math.Abs(tb.FontSize - 18) < 0.1);
+            Assert.IsNotNull(titleText, "Chat title text not found.");
+
+            var titleBounds = titleText.TransformToAncestor((Visual)rootElement)
+                .TransformBounds(new Rect(0, 0, titleText.ActualWidth, titleText.ActualHeight));
+            var comboBounds = comboBox.TransformToAncestor((Visual)rootElement)
+                .TransformBounds(new Rect(0, 0, comboBox.ActualWidth, comboBox.ActualHeight));
+
+            Assert.IsTrue(titleBounds.Bottom <= comboBounds.Top + 2,
+                "Title text should be above the model dropdown.");
             Assert.AreEqual(HorizontalAlignment.Left, comboBox.HorizontalAlignment, "Model dropdown should be left aligned.");
         });
     }
@@ -439,6 +446,28 @@ public sealed class UiBehaviorTests
                 $"Temporary hotkey hint is clipped (bottom {bounds.Bottom:F1} > content height {content.ActualHeight:F1}).");
 
             window.Close();
+        });
+    }
+
+    [TestMethod]
+    public void ChatHeader_WebSearchToggleExists()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var toggle = window.FindName("WebSearchToggle") as ToggleButton;
+            Assert.IsNotNull(toggle, "Web search toggle not found.");
+            var binding = BindingOperations.GetBindingExpression(toggle, ToggleButton.IsCheckedProperty);
+            Assert.IsNotNull(binding, "Web search toggle is not data-bound.");
         });
     }
 

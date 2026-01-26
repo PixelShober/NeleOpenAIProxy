@@ -402,7 +402,8 @@ public sealed class MainViewModel : ObservableObject
         var chat = new ChatConversation
         {
             Title = GetNextChatTitle(),
-            Model = ResolveDefaultModel()
+            Model = ResolveDefaultModel(),
+            UseWebSearch = _settings.WebSearchEnabled
         };
         _state.Conversations.Add(chat);
 
@@ -429,7 +430,8 @@ public sealed class MainViewModel : ObservableObject
         {
             Title = "Temporary chat",
             Model = ResolveTemporaryModel(),
-            IsTemporary = true
+            IsTemporary = true,
+            UseWebSearch = _settings.WebSearchEnabled
         };
 
         _state.Conversations.Add(chat);
@@ -532,7 +534,8 @@ public sealed class MainViewModel : ObservableObject
                 _settings.BaseUrl,
                 model,
                 chat.Model.Messages,
-                CancellationToken.None);
+                CancellationToken.None,
+                webSearch: BuildWebSearchOptions(chat));
 
             chat.Model.Messages.Add(new ChatMessage
             {
@@ -768,6 +771,43 @@ public sealed class MainViewModel : ObservableObject
             : _settings.SelectedModel;
     }
 
+    private WebSearchOptions? BuildWebSearchOptions(ChatConversationViewModel chat)
+    {
+        if (!chat.UseWebSearch)
+        {
+            return null;
+        }
+
+        return new WebSearchOptions
+        {
+            Enabled = true,
+            Language = string.IsNullOrWhiteSpace(_settings.WebSearchLanguage)
+                ? "de"
+                : _settings.WebSearchLanguage,
+            Country = string.IsNullOrWhiteSpace(_settings.WebSearchCountry)
+                ? "ALL"
+                : _settings.WebSearchCountry,
+            Results = Clamp(_settings.WebSearchResults, 1, 20, 5),
+            QueriesMin = Clamp(_settings.WebSearchQueriesMin, 1, 20, 1),
+            QueriesMax = Clamp(_settings.WebSearchQueriesMax, 1, 20, 1)
+        };
+    }
+
+    private static int Clamp(int value, int min, int max, int fallback)
+    {
+        if (value <= 0)
+        {
+            return fallback;
+        }
+
+        if (value < min)
+        {
+            return min;
+        }
+
+        return value > max ? max : value;
+    }
+
     private void SeedAvailableModels()
     {
         if (AvailableModels.Count > 0)
@@ -805,7 +845,8 @@ public sealed class MainViewModel : ObservableObject
         }
 
         if (e.PropertyName == nameof(ChatConversationViewModel.SelectedModel)
-            || e.PropertyName == nameof(ChatConversationViewModel.Title))
+            || e.PropertyName == nameof(ChatConversationViewModel.Title)
+            || e.PropertyName == nameof(ChatConversationViewModel.UseWebSearch))
         {
             chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
             _ = _dataStore.SaveStateAsync(_state);

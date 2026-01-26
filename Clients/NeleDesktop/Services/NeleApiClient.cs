@@ -95,7 +95,8 @@ public sealed class NeleApiClient
         IReadOnlyCollection<ChatMessage> messages,
         CancellationToken cancellationToken,
         int? maxTokens = null,
-        double? temperature = null)
+        double? temperature = null,
+        WebSearchOptions? webSearch = null)
     {
         var payload = new JsonObject
         {
@@ -111,6 +112,37 @@ public sealed class NeleApiClient
         if (temperature is not null)
         {
             payload["temperature"] = temperature.Value;
+        }
+
+        if (webSearch is not null && webSearch.Enabled)
+        {
+            var webSearchPayload = new JsonObject
+            {
+                ["enabled"] = true
+            };
+
+            if (!string.IsNullOrWhiteSpace(webSearch.Language))
+            {
+                webSearchPayload["language"] = webSearch.Language;
+            }
+
+            if (!string.IsNullOrWhiteSpace(webSearch.Country))
+            {
+                webSearchPayload["country"] = webSearch.Country;
+            }
+
+            if (webSearch.Results > 0)
+            {
+                webSearchPayload["results"] = webSearch.Results;
+            }
+
+            webSearchPayload["queries"] = new JsonObject
+            {
+                ["min"] = webSearch.QueriesMin,
+                ["max"] = webSearch.QueriesMax
+            };
+
+            payload["web_search"] = webSearchPayload;
         }
 
         var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(baseUrl, "chat-completion-sync"))

@@ -65,4 +65,17 @@ public sealed class ChatConversationViewModel : ObservableObject
             }
         }
     }
+
+    public bool UseWebSearch
+    {
+        get => Model.UseWebSearch;
+        set
+        {
+            if (Model.UseWebSearch != value)
+            {
+                Model.UseWebSearch = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 }

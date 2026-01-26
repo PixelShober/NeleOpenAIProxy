@@ -9,6 +9,12 @@ public sealed class AppSettings
     public bool DarkMode { get; set; } = true;
     public string Hotkey { get; set; } = "Ctrl+Alt+Space";
     public string TemporaryHotkey { get; set; } = "Ctrl+Alt+T";
+    public bool WebSearchEnabled { get; set; }
+    public string WebSearchLanguage { get; set; } = "de";
+    public string WebSearchCountry { get; set; } = "ALL";
+    public int WebSearchResults { get; set; } = 5;
+    public int WebSearchQueriesMin { get; set; } = 1;
+    public int WebSearchQueriesMax { get; set; } = 1;
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
     public double? WindowWidth { get; set; }
