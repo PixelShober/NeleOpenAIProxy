@@ -355,34 +355,22 @@
                     </Border.Style>
                     <StackPanel>
                         <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
-                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                            <ComboBox Width="240"
-                                      HorizontalAlignment="Left"
-                                      HorizontalContentAlignment="Left"
-                                      ItemsSource="{Binding AvailableModels}"
-                                      SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
-                                <ComboBox.Style>
-                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBox.Style>
-                            </ComboBox>
-                            <ToggleButton x:Name="WebSearchToggle"
-                                          Margin="10,0,0,0"
-                                          Style="{StaticResource PillToggleButtonStyle}"
-                                          ToolTip="Web search"
-                                          IsEnabled="{Binding IsApiKeyAvailable}"
-                                          IsChecked="{Binding SelectedChat.UseWebSearch, Mode=TwoWay}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE774;" FontSize="12" Margin="0,0,6,0" />
-                                    <TextBlock Text="Web" FontSize="12" />
-                                </StackPanel>
-                            </ToggleButton>
-                        </StackPanel>
+                        <ComboBox Width="240"
+                                  Margin="0,10,0,0"
+                                  HorizontalAlignment="Left"
+                                  HorizontalContentAlignment="Left"
+                                  ItemsSource="{Binding AvailableModels}"
+                                  SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
+                            <ComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.Style>
+                        </ComboBox>
                     </StackPanel>
                 </Border>
 
@@ -490,10 +478,17 @@
                     </Border.Style>
                     <Grid Margin="8">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <ToggleButton x:Name="WebSearchToggle"
+                                      Style="{StaticResource PlusToggleButtonStyle}"
+                                      ToolTip="Web search"
+                                      IsEnabled="{Binding IsApiKeyAvailable}"
+                                      IsChecked="{Binding SelectedChat.UseWebSearch, Mode=TwoWay}" />
                         <TextBox x:Name="InputBox"
+                                 Grid.Column="1"
                                  Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
                                  AcceptsReturn="True"
                                  MinHeight="56"
@@ -501,8 +496,9 @@
                                  TextWrapping="Wrap"
                                  BorderThickness="0"
                                  Background="Transparent"
+                                 Margin="8,0,0,0"
                                  PreviewKeyDown="InputBox_KeyDown" />
-                        <Button Grid.Column="1"
+                        <Button Grid.Column="2"
                                 Margin="10,0,2,0"
                                 Style="{StaticResource SendButtonStyle}"
                                 Command="{Binding SendMessageCommand}">
