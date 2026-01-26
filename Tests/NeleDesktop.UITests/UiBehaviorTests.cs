@@ -129,10 +129,44 @@ public sealed class UiBehaviorTests
 
             var content = itemsControl.ItemTemplate.LoadContent() as FrameworkElement;
             Assert.IsNotNull(content, "Message template content not created.");
-            var messageText = UiTestHelpers.FindVisualChild<TextBox>(content, tb => tb.TextWrapping == TextWrapping.Wrap);
-            Assert.IsNotNull(messageText, "Message TextBox not found.");
-            Assert.IsTrue(messageText.IsReadOnly, "Message text is not read-only.");
-            Assert.AreEqual(new Thickness(0), messageText.BorderThickness, "Message text box should not draw a border.");
+            var messageBox = UiTestHelpers.FindVisualChild<RichTextBox>(content);
+            Assert.IsNotNull(messageBox, "Message RichTextBox not found.");
+            Assert.IsTrue(messageBox.IsReadOnly, "Message text is not read-only.");
+            Assert.AreEqual(new Thickness(0), messageBox.BorderThickness, "Message RichTextBox should not draw a border.");
+            var binding = BindingOperations.GetBindingExpression(messageBox, NeleDesktop.Converters.MarkdownRichTextBox.TextProperty);
+            Assert.IsNotNull(binding, "Markdown binding is missing on message RichTextBox.");
+        });
+    }
+
+    [TestMethod]
+    public void MarkdownConverter_FormatsBoldAndItalic()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var converter = new NeleDesktop.Converters.MarkdownToFlowDocumentConverter();
+            var document = converter.Convert("***BoldItalic*** and **Bold** and *Italic*", typeof(System.Windows.Documents.FlowDocument), null!, System.Globalization.CultureInfo.InvariantCulture)
+                as System.Windows.Documents.FlowDocument;
+            Assert.IsNotNull(document, "Markdown converter did not return a FlowDocument.");
+
+            var text = new System.Text.StringBuilder();
+            foreach (var block in document!.Blocks)
+            {
+                if (block is System.Windows.Documents.Paragraph paragraph)
+                {
+                    foreach (var inline in paragraph.Inlines)
+                    {
+                        if (inline is System.Windows.Documents.Run run)
+                        {
+                            text.Append(run.Text);
+                        }
+                    }
+                }
+            }
+
+            Assert.IsTrue(text.ToString().Contains("BoldItalic"));
+            Assert.IsTrue(text.ToString().Contains("Bold"));
+            Assert.IsTrue(text.ToString().Contains("Italic"));
         });
     }
 

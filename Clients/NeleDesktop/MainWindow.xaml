@@ -4,6 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:vm="clr-namespace:NeleDesktop.ViewModels"
         xmlns:models="clr-namespace:NeleDesktop.Models"
+        xmlns:converters="clr-namespace:NeleDesktop.Converters"
         Title="Nele Chat" Width="760" Height="620" MinWidth="{Binding WindowMinWidth}" MinHeight="520"
         WindowStyle="None"
         ResizeMode="CanResize"
@@ -417,21 +418,17 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBox Text="{Binding Content}"
-                                                     Style="{x:Null}"
-                                                     TextWrapping="Wrap"
-                                                     Foreground="{DynamicResource PrimaryTextBrush}"
-                                                     Background="Transparent"
-                                                     BorderThickness="0"
-                                                     Padding="0"
-                                                     MinHeight="0"
-                                                     Margin="0"
-                                                     IsReadOnly="True"
-                                                     IsReadOnlyCaretVisible="False"
-                                                     AcceptsReturn="True"
-                                                     VerticalScrollBarVisibility="Hidden"
-                                                     HorizontalScrollBarVisibility="Hidden"
-                                                     Cursor="IBeam" />
+                                            <RichTextBox converters:MarkdownRichTextBox.Text="{Binding Content}"
+                                                         IsReadOnly="True"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Padding="0"
+                                                         Margin="0"
+                                                         MinHeight="0"
+                                                         HorizontalScrollBarVisibility="Hidden"
+                                                         VerticalScrollBarVisibility="Hidden"
+                                                         Foreground="{DynamicResource PrimaryTextBrush}"
+                                                         Cursor="IBeam" />
                                         </Border>
                                     </StackPanel>
                                 </DataTemplate>

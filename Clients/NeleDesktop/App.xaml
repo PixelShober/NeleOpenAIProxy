@@ -10,6 +10,7 @@
             </ResourceDictionary.MergedDictionaries>
             <converters:MessageAlignmentConverter x:Key="MessageAlignmentConverter" />
             <converters:MessageBubbleBrushConverter x:Key="MessageBubbleBrushConverter" />
+            <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocumentConverter" />
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>
