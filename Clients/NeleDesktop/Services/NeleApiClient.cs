@@ -62,6 +62,32 @@ public sealed class NeleApiClient
         return verified;
     }
 
+    public async Task<bool> IsModelUsableAsync(string apiKey, string baseUrl, string model, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var messages = new[]
+            {
+                new ChatMessage
+                {
+                    Role = "user",
+                    Content = "ping"
+                }
+            };
+
+            _ = await SendChatAsync(apiKey, baseUrl, model, messages, cancellationToken, maxTokens: 1, temperature: 0);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async Task<string> SendChatAsync(
         string apiKey,
         string baseUrl,
@@ -128,7 +154,7 @@ public sealed class NeleApiClient
 
         foreach (var model in models.EnumerateArray())
         {
-            if (!IsModelAvailable(model))
+            if (!IsModelUsableFlag(model))
             {
                 continue;
             }
@@ -144,37 +170,16 @@ public sealed class NeleApiClient
         }
     }
 
-    private static bool IsModelAvailable(JsonElement model)
+    private static bool IsModelUsableFlag(JsonElement model)
     {
-        if (TryGetBoolean(model, "enabled", out var enabled) && !enabled)
+        if (TryGetBoolean(model, "is_usable", out var isUsable) && !isUsable)
         {
             return false;
         }
 
-        if (TryGetBoolean(model, "available", out var available) && !available)
+        if (TryGetBoolean(model, "isUsable", out var isUsableAlt) && !isUsableAlt)
         {
             return false;
-        }
-
-        if (TryGetBoolean(model, "disabled", out var disabled) && disabled)
-        {
-            return false;
-        }
-
-        if (TryGetBoolean(model, "is_available", out var isAvailable) && !isAvailable)
-        {
-            return false;
-        }
-
-        if (model.TryGetProperty("status", out var status)
-            && status.ValueKind == JsonValueKind.String)
-        {
-            var value = status.GetString();
-            if (string.Equals(value, "disabled", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "unavailable", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
         }
 
         return true;
@@ -208,29 +213,4 @@ public sealed class NeleApiClient
         return array;
     }
 
-    private async Task<bool> IsModelUsableAsync(string apiKey, string baseUrl, string model, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var messages = new[]
-            {
-                new ChatMessage
-                {
-                    Role = "user",
-                    Content = "ping"
-                }
-            };
-
-            _ = await SendChatAsync(apiKey, baseUrl, model, messages, cancellationToken, maxTokens: 1, temperature: 0);
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

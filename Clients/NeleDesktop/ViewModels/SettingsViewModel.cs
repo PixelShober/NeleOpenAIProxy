@@ -185,7 +185,7 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    public bool IsModelSelectionEnabled => !IsModelLoading
+    public bool IsModelSelectionEnabled => Models.Count > 0
         && !string.IsNullOrWhiteSpace(ApiKey)
         && !HasApiKeyError;
 
@@ -198,7 +198,7 @@ public sealed class SettingsViewModel : ObservableObject
                 return "API Key erforderlich";
             }
 
-            if (IsModelLoading)
+            if (IsModelLoading && Models.Count == 0)
             {
                 return $"Model Liste wird geladen{_modelLoadingDots}";
             }
@@ -230,10 +230,10 @@ public sealed class SettingsViewModel : ObservableObject
         IsBusy = true;
         IsModelLoading = true;
         ApiKeyErrorMessage = string.Empty;
-        StatusMessage = "Validating models...";
+        StatusMessage = "Loading models...";
         try
         {
-            var models = await _apiClient.GetVerifiedModelsAsync(ApiKey, BaseUrl, cancellationToken);
+            var models = await _apiClient.GetModelsAsync(ApiKey, BaseUrl, cancellationToken);
             Models.Clear();
             foreach (var model in models)
             {
@@ -250,8 +250,31 @@ public sealed class SettingsViewModel : ObservableObject
                 TemporaryModel = Models[0];
             }
 
-            StatusMessage = $"Loaded {Models.Count} models.";
             _lastLoadedApiKey = ApiKey;
+
+            StatusMessage = "Validating models...";
+            foreach (var model in models)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var isUsable = await _apiClient.IsModelUsableAsync(ApiKey, BaseUrl, model, cancellationToken);
+                if (!isUsable)
+                {
+                    Models.Remove(model);
+
+                    if (string.Equals(SelectedModel, model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SelectedModel = Models.Count > 0 ? Models[0] : string.Empty;
+                    }
+
+                    if (string.Equals(TemporaryModel, model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        TemporaryModel = Models.Count > 0 ? Models[0] : string.Empty;
+                    }
+                }
+            }
+
+            StatusMessage = $"Loaded {Models.Count} models.";
         }
         catch (UnauthorizedAccessException)
         {

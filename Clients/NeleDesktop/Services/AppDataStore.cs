@@ -18,9 +18,11 @@ public sealed class AppDataStore
         WriteIndented = true
     };
 
-    public AppDataStore()
+    public AppDataStore(string? rootPath = null)
     {
-        _rootPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NeleAIProxy");
+        _rootPath = string.IsNullOrWhiteSpace(rootPath)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NeleAIProxy")
+            : rootPath;
         _settingsPath = Path.Combine(_rootPath, "settings.json");
         _statePath = Path.Combine(_rootPath, "conversations.json");
     }
