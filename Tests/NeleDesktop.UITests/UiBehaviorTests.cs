@@ -323,8 +323,9 @@ public sealed class UiBehaviorTests
             window.Show();
             UiTestHelpers.DoEvents();
             window.ApplyTemplate();
-            window.Measure(new Size(520, 520));
-            window.Arrange(new Rect(0, 0, 520, 520));
+            var size = new Size(window.Width, window.Height);
+            window.Measure(size);
+            window.Arrange(new Rect(0, 0, size.Width, size.Height));
             window.UpdateLayout();
 
             var label = UiTestHelpers.FindLogicalChild<TextBlock>(window, text => string.Equals(text.Text, "Temporary chat hotkey", StringComparison.OrdinalIgnoreCase))
@@ -342,8 +343,9 @@ public sealed class UiBehaviorTests
             var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
             var window = new NeleDesktop.Views.SettingsWindow(viewModel);
             window.ApplyTemplate();
-            window.Measure(new Size(520, 520));
-            window.Arrange(new Rect(0, 0, 520, 520));
+            var size = new Size(window.Width, window.Height);
+            window.Measure(size);
+            window.Arrange(new Rect(0, 0, size.Width, size.Height));
             window.UpdateLayout();
 
             var hotkeyBox = window.FindName("HotkeyInput") as TextBox;
@@ -367,8 +369,9 @@ public sealed class UiBehaviorTests
             var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
             var window = new NeleDesktop.Views.SettingsWindow(viewModel);
             window.ApplyTemplate();
-            window.Measure(new Size(520, 520));
-            window.Arrange(new Rect(0, 0, 520, 520));
+            var size = new Size(window.Width, window.Height);
+            window.Measure(size);
+            window.Arrange(new Rect(0, 0, size.Width, size.Height));
             window.UpdateLayout();
 
             var hotkeyHint = window.FindName("HotkeyHint") as TextBlock;
@@ -378,6 +381,33 @@ public sealed class UiBehaviorTests
             Assert.IsNotNull(tempHotkeyHint, "Temporary hotkey hint text missing.");
             Assert.AreEqual("Press keys to set hotkey", hotkeyHint.Text);
             Assert.AreEqual("Press keys to set hotkey", tempHotkeyHint.Text);
+        });
+    }
+
+    [TestMethod]
+    public void SettingsWindow_TemporaryHotkeyFieldFitsDefaultHeight()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.Show();
+            UiTestHelpers.DoEvents();
+            window.ApplyTemplate();
+            window.UpdateLayout();
+
+            var input = window.FindName("TemporaryHotkeyInput") as TextBox;
+            Assert.IsNotNull(input, "Temporary hotkey input not found.");
+            Assert.IsNotNull(window.Content, "Settings window content not found.");
+
+            var content = (FrameworkElement)window.Content;
+            var bounds = input.TransformToAncestor(content)
+                .TransformBounds(new Rect(0, 0, input.ActualWidth, input.ActualHeight));
+            Assert.IsTrue(bounds.Bottom <= content.ActualHeight - 12,
+                $"Temporary hotkey input is clipped (bottom {bounds.Bottom:F1} > content height {content.ActualHeight:F1}).");
+
+            window.Close();
         });
     }
 

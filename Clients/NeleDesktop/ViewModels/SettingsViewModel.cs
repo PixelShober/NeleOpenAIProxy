@@ -217,6 +217,11 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
+        if (IsModelLoading)
+        {
+            return;
+        }
+
         if (string.Equals(ApiKey, _lastLoadedApiKey, StringComparison.Ordinal) && !HasApiKeyError)
         {
             return;

@@ -33,6 +33,9 @@ public sealed class MainViewModel : ObservableObject
     private double _sidebarWidth = ExpandedSidebarWidth;
     private ChatConversationViewModel? _temporaryChat;
     private bool _wasSidebarVisibleBeforeTemp = true;
+    private CancellationTokenSource? _modelLoadCts;
+    private Task? _modelLoadTask;
+    private string _modelLoadApiKey = string.Empty;
     public MainViewModel()
     {
         NewChatCommand = new RelayCommand(CreateNewChat);
@@ -178,7 +181,7 @@ public sealed class MainViewModel : ObservableObject
 
         if (!string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
-            await LoadAvailableModelsAsync();
+            _ = RefreshModelsInBackgroundAsync(force: true);
         }
 
         StatusMessage = "Ready.";
@@ -193,6 +196,7 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task ApplySettingsAsync(SettingsViewModel settingsViewModel)
     {
+        var previousApiKey = _settings.ApiKey;
         _settings = settingsViewModel.ToSettings();
         _themeService.ApplyTheme(_settings.DarkMode);
         if (settingsViewModel.Models.Count > 0)
@@ -206,9 +210,17 @@ public sealed class MainViewModel : ObservableObject
         HotkeyChanged?.Invoke(this, EventArgs.Empty);
         await _dataStore.SaveSettingsAsync(_settings);
 
-        if (AvailableModels.Count == 0 && !string.IsNullOrWhiteSpace(_settings.ApiKey))
+        if (!string.IsNullOrWhiteSpace(_settings.ApiKey) && !settingsViewModel.HasApiKeyError)
         {
-            await LoadAvailableModelsAsync();
+            if (settingsViewModel.IsModelLoading)
+            {
+                AttachSettingsModelLoading(settingsViewModel);
+            }
+            else
+            {
+                var apiKeyChanged = !string.Equals(previousApiKey, _settings.ApiKey, StringComparison.Ordinal);
+                _ = RefreshModelsInBackgroundAsync(force: apiKeyChanged);
+            }
         }
     }
 
@@ -602,17 +614,73 @@ public sealed class MainViewModel : ObservableObject
         _ = _dataStore.SaveSettingsAsync(_settings);
     }
 
-    private async Task LoadAvailableModelsAsync()
+    private async Task LoadAvailableModelsAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var models = await _apiClient.GetVerifiedModelsAsync(_settings.ApiKey, _settings.BaseUrl, CancellationToken.None);
+            var models = await _apiClient.GetVerifiedModelsAsync(_settings.ApiKey, _settings.BaseUrl, cancellationToken);
             UpdateAvailableModels(models);
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
             StatusMessage = ex.Message;
         }
+    }
+
+    private Task RefreshModelsInBackgroundAsync(bool force)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+        {
+            return Task.CompletedTask;
+        }
+
+        if (!force
+            && string.Equals(_modelLoadApiKey, _settings.ApiKey, StringComparison.Ordinal)
+            && _modelLoadTask is not null
+            && !_modelLoadTask.IsCompleted)
+        {
+            return _modelLoadTask;
+        }
+
+        if (!force
+            && string.Equals(_modelLoadApiKey, _settings.ApiKey, StringComparison.Ordinal)
+            && AvailableModels.Count > 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        _modelLoadCts?.Cancel();
+        _modelLoadCts = new CancellationTokenSource();
+        _modelLoadApiKey = _settings.ApiKey;
+        _modelLoadTask = LoadAvailableModelsAsync(_modelLoadCts.Token);
+        return _modelLoadTask;
+    }
+
+    private void AttachSettingsModelLoading(SettingsViewModel settingsViewModel)
+    {
+        void Handler(object? sender, PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName != nameof(SettingsViewModel.IsModelLoading))
+            {
+                return;
+            }
+
+            if (settingsViewModel.IsModelLoading)
+            {
+                return;
+            }
+
+            settingsViewModel.PropertyChanged -= Handler;
+            if (settingsViewModel.Models.Count > 0)
+            {
+                UpdateAvailableModels(settingsViewModel.Models);
+            }
+        }
+
+        settingsViewModel.PropertyChanged += Handler;
     }
 
     private void UpdateAvailableModels(IEnumerable<string> models)
