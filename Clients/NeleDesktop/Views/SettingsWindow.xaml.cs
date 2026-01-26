@@ -16,12 +16,14 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsViewModel _viewModel;
     private CancellationTokenSource? _apiKeyLoadCts;
+    private bool _isCancelled;
 
     public SettingsWindow(SettingsViewModel viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = _viewModel;
+        Closing += SettingsWindow_Closing;
     }
 
     private async void ApiKey_TextChanged(object sender, TextChangedEventArgs e)
@@ -48,6 +50,7 @@ public partial class SettingsWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
+        _isCancelled = true;
         DialogResult = false;
     }
 
@@ -58,7 +61,7 @@ public partial class SettingsWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        DialogResult = true;
     }
 
     private void Hotkey_PreviewKeyDown(object sender, WpfKeyEventArgs e)
@@ -207,6 +210,24 @@ public partial class SettingsWindow : Window
         }
 
         SetHotkeyCapture(_viewModel.IsHotkeyCaptureActive || _viewModel.IsTemporaryHotkeyCaptureActive);
+    }
+
+    private void SettingsWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_isCancelled)
+        {
+            return;
+        }
+
+        if (!System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+        {
+            return;
+        }
+
+        if (DialogResult is null)
+        {
+            DialogResult = true;
+        }
     }
 }
 
