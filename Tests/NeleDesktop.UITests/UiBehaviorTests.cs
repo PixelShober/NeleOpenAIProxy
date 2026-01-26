@@ -358,6 +358,29 @@ public sealed class UiBehaviorTests
         });
     }
 
+    [TestMethod]
+    public void SettingsWindow_HotkeyHintsExist()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.ApplyTemplate();
+            window.Measure(new Size(520, 520));
+            window.Arrange(new Rect(0, 0, 520, 520));
+            window.UpdateLayout();
+
+            var hotkeyHint = window.FindName("HotkeyHint") as TextBlock;
+            var tempHotkeyHint = window.FindName("TemporaryHotkeyHint") as TextBlock;
+
+            Assert.IsNotNull(hotkeyHint, "Hotkey hint text missing.");
+            Assert.IsNotNull(tempHotkeyHint, "Temporary hotkey hint text missing.");
+            Assert.AreEqual("Press keys to set hotkey", hotkeyHint.Text);
+            Assert.AreEqual("Press keys to set hotkey", tempHotkeyHint.Text);
+        });
+    }
+
     private static void AssertContrast(ResourceDictionary dictionary, string textKey, string backgroundKey, double minRatio)
     {
         var textColor = UiTestHelpers.GetResourceColor(dictionary, textKey);

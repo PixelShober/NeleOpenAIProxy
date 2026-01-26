@@ -127,6 +127,12 @@
                          GotKeyboardFocus="Hotkey_GotKeyboardFocus"
                          LostKeyboardFocus="Hotkey_LostKeyboardFocus"
                          IsReadOnly="True" />
+                <TextBlock x:Name="HotkeyHint"
+                           Text="Press keys to set hotkey"
+                           FontSize="11"
+                           Margin="0,4,0,0"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           Visibility="{Binding IsHotkeyCaptureActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                 <TextBlock Text="Temporary chat hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
                 <TextBox x:Name="TemporaryHotkeyInput"
@@ -136,6 +142,12 @@
                          GotKeyboardFocus="Hotkey_GotKeyboardFocus"
                          LostKeyboardFocus="Hotkey_LostKeyboardFocus"
                          IsReadOnly="True" />
+                <TextBlock x:Name="TemporaryHotkeyHint"
+                           Text="Press keys to set hotkey"
+                           FontSize="11"
+                           Margin="0,4,0,0"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           Visibility="{Binding IsTemporaryHotkeyCaptureActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                 <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,16,0,0" TextWrapping="Wrap" />
             </StackPanel>

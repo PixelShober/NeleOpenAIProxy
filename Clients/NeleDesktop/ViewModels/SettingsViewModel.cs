@@ -24,6 +24,8 @@ public sealed class SettingsViewModel : ObservableObject
     private string _apiKeyErrorMessage = string.Empty;
     private bool _isModelLoading;
     private string _lastLoadedApiKey = string.Empty;
+    private bool _isHotkeyCaptureActive;
+    private bool _isTemporaryHotkeyCaptureActive;
     private readonly DispatcherTimer _modelLoadingTimer;
     private int _modelLoadingDotIndex;
     private string _modelLoadingDots = string.Empty;
@@ -143,6 +145,18 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     public bool HasApiKeyError => !string.IsNullOrWhiteSpace(ApiKeyErrorMessage);
+
+    public bool IsHotkeyCaptureActive
+    {
+        get => _isHotkeyCaptureActive;
+        set => SetProperty(ref _isHotkeyCaptureActive, value);
+    }
+
+    public bool IsTemporaryHotkeyCaptureActive
+    {
+        get => _isTemporaryHotkeyCaptureActive;
+        set => SetProperty(ref _isTemporaryHotkeyCaptureActive, value);
+    }
 
     public bool IsModelLoading
     {

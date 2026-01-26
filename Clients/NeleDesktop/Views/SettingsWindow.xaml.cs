@@ -97,12 +97,12 @@ public partial class SettingsWindow : Window
 
     private void Hotkey_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        SetHotkeyCapture(true);
+        UpdateHotkeyFocusState(sender, true);
     }
 
     private void Hotkey_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        SetHotkeyCapture(false);
+        UpdateHotkeyFocusState(sender, false);
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -193,6 +193,20 @@ public partial class SettingsWindow : Window
         {
             mainWindow.SetHotkeyCaptureActive(isActive);
         }
+    }
+
+    private void UpdateHotkeyFocusState(object sender, bool isFocused)
+    {
+        if (ReferenceEquals(sender, HotkeyInput))
+        {
+            _viewModel.IsHotkeyCaptureActive = isFocused;
+        }
+        else if (ReferenceEquals(sender, TemporaryHotkeyInput))
+        {
+            _viewModel.IsTemporaryHotkeyCaptureActive = isFocused;
+        }
+
+        SetHotkeyCapture(_viewModel.IsHotkeyCaptureActive || _viewModel.IsTemporaryHotkeyCaptureActive);
     }
 }
 
