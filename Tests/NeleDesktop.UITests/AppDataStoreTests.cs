@@ -108,4 +108,41 @@ public sealed class AppDataStoreTests
             }
         }
     }
+
+    [TestMethod]
+    public async Task AppDataStore_SaveWindowPlacementPreservesApiKey()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "NeleAIProxyTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var store = new AppDataStore(root);
+            var settings = new AppSettings
+            {
+                ApiKey = "persist-key",
+                BaseUrl = "http://localhost:5155/api:v1/",
+                SelectedModel = "model-a"
+            };
+
+            await store.SaveSettingsAsync(settings);
+            await store.SaveWindowPlacementAsync(100, 200, 800, 600);
+
+            var loaded = await store.LoadSettingsAsync();
+            Assert.AreEqual("persist-key", loaded.ApiKey);
+            Assert.AreEqual("http://localhost:5155/api:v1/", loaded.BaseUrl);
+            Assert.AreEqual("model-a", loaded.SelectedModel);
+            Assert.AreEqual(100, loaded.WindowLeft);
+            Assert.AreEqual(200, loaded.WindowTop);
+            Assert.AreEqual(800, loaded.WindowWidth);
+            Assert.AreEqual(600, loaded.WindowHeight);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
 }

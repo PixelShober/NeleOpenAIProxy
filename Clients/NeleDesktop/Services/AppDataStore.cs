@@ -46,6 +46,16 @@ public sealed class AppDataStore
         await File.WriteAllTextAsync(_settingsPath, json).ConfigureAwait(false);
     }
 
+    public async Task SaveWindowPlacementAsync(double left, double top, double width, double height)
+    {
+        var settings = await LoadSettingsAsync().ConfigureAwait(false);
+        settings.WindowLeft = left;
+        settings.WindowTop = top;
+        settings.WindowWidth = width;
+        settings.WindowHeight = height;
+        await SaveSettingsAsync(settings).ConfigureAwait(false);
+    }
+
     public async Task<AppState> LoadStateAsync()
     {
         if (!File.Exists(_statePath))

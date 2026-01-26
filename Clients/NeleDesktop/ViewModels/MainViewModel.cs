@@ -619,7 +619,7 @@ public sealed class MainViewModel : ObservableObject
         _settings.WindowTop = top;
         _settings.WindowWidth = width;
         _settings.WindowHeight = height;
-        _ = _dataStore.SaveSettingsAsync(_settings);
+        _ = _dataStore.SaveWindowPlacementAsync(left, top, width, height);
     }
 
     private async Task LoadAvailableModelsAsync(CancellationToken cancellationToken)
