@@ -633,7 +633,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        var left = Left;
         Width = Math.Min(Width, _viewModel.CompactWindowWidth);
+        if (WindowState == WindowState.Normal)
+        {
+            Left = left;
+        }
     }
 
     private void RestoreTemporaryWidth()
@@ -645,7 +650,9 @@ public partial class MainWindow : Window
 
         if (WindowState == WindowState.Normal)
         {
+            var left = Left;
             Width = _widthBeforeTemporaryChat.Value;
+            Left = left;
         }
 
         _widthBeforeTemporaryChat = null;
@@ -660,7 +667,12 @@ public partial class MainWindow : Window
 
         if (_viewModel.IsSidebarVisible)
         {
+            var left = Left;
             Width = Math.Max(Width, _widthBeforeTemporaryChat.Value);
+            if (WindowState == WindowState.Normal)
+            {
+                Left = left;
+            }
             return;
         }
 

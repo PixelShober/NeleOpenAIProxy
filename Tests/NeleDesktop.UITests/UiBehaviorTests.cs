@@ -411,6 +411,37 @@ public sealed class UiBehaviorTests
         });
     }
 
+    [TestMethod]
+    public void SettingsWindow_TemporaryHotkeyHintFitsDefaultHeight()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings())
+            {
+                IsTemporaryHotkeyCaptureActive = true
+            };
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.Show();
+            UiTestHelpers.DoEvents();
+            window.ApplyTemplate();
+            window.UpdateLayout();
+
+            var hint = window.FindName("TemporaryHotkeyHint") as TextBlock;
+            Assert.IsNotNull(hint, "Temporary hotkey hint not found.");
+            Assert.AreEqual(Visibility.Visible, hint.Visibility, "Temporary hotkey hint should be visible.");
+            Assert.IsNotNull(window.Content, "Settings window content not found.");
+
+            var content = (FrameworkElement)window.Content;
+            var bounds = hint.TransformToAncestor(content)
+                .TransformBounds(new Rect(0, 0, hint.ActualWidth, hint.ActualHeight));
+            Assert.IsTrue(bounds.Bottom <= content.ActualHeight - 8,
+                $"Temporary hotkey hint is clipped (bottom {bounds.Bottom:F1} > content height {content.ActualHeight:F1}).");
+
+            window.Close();
+        });
+    }
+
     private static void AssertContrast(ResourceDictionary dictionary, string textKey, string backgroundKey, double minRatio)
     {
         var textColor = UiTestHelpers.GetResourceColor(dictionary, textKey);

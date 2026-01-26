@@ -166,6 +166,7 @@ public sealed class MainViewModel : ObservableObject
     {
         _settings = await _dataStore.LoadSettingsAsync();
         _state = await _dataStore.LoadStateAsync();
+        NormalizeState();
 
         _themeService.ApplyTheme(_settings.DarkMode);
 
@@ -491,7 +492,7 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        var text = InputText.Trim();
+        var text = (InputText ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(text))
         {
             return;
@@ -501,6 +502,13 @@ public sealed class MainViewModel : ObservableObject
         IsBusy = true;
 
         var chat = SelectedChat;
+        if (chat is null)
+        {
+            IsBusy = false;
+            return;
+        }
+
+        chat.Model.Messages ??= new ObservableCollection<ChatMessage>();
         var userMessage = new ChatMessage
         {
             Role = "user",
@@ -819,6 +827,27 @@ public sealed class MainViewModel : ObservableObject
                 folder.Chats.Remove(chat);
                 return;
             }
+        }
+    }
+
+    private void NormalizeState()
+    {
+        _state.Folders ??= new List<ChatFolder>();
+        _state.Conversations ??= new List<ChatConversation>();
+
+        foreach (var conversation in _state.Conversations)
+        {
+            if (string.IsNullOrWhiteSpace(conversation.Title))
+            {
+                conversation.Title = "New chat";
+            }
+
+            if (string.IsNullOrWhiteSpace(conversation.Model))
+            {
+                conversation.Model = string.Empty;
+            }
+
+            conversation.Messages ??= new ObservableCollection<ChatMessage>();
         }
     }
 }
