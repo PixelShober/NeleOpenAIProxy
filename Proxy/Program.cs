@@ -125,13 +125,56 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
     using (requestDoc)
     {
         var root = requestDoc.RootElement;
-        var isStream = root.TryGetProperty("stream", out var streamValue) && streamValue.ValueKind == JsonValueKind.True;
+        var streamRequested = root.TryGetProperty("stream", out var streamValue) && streamValue.ValueKind == JsonValueKind.True;
+        var forceStream = IsStreamingForced(config);
+        var isStream = streamRequested || forceStream;
         var defaultModel = GetDefaultChatModel(config);
         var model = ResolveChatModel(root, defaultModel);
         var nelePayload = BuildChatCompletionPayload(root, model);
         var json = nelePayload.ToJsonString();
 
-        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, isStream ? "chat-completion" : "chat-completion-sync")
+        if (isStream)
+        {
+            var includeUsage = streamRequested && TryGetStreamIncludeUsage(root);
+            using var upstreamReq = new HttpRequestMessage(HttpMethod.Post, "chat-completion-sync")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            if (!TryApplyAuthorization(upstreamReq, context.Request, config))
+            {
+                await WriteMissingAuth(context);
+                return;
+            }
+
+            var upstreamClient = httpClientFactory.CreateClient("Nele");
+            using var upstreamResp = await upstreamClient.SendAsync(upstreamReq, HttpCompletionOption.ResponseContentRead, context.RequestAborted);
+            var upstreamBody = await upstreamResp.Content.ReadAsStringAsync(context.RequestAborted);
+
+            if (!upstreamResp.IsSuccessStatusCode)
+            {
+                // Optional: wenn upstream leer ist, gib wenigstens OpenAI-Error zurück (hilft bei "no body")
+                if (string.IsNullOrWhiteSpace(upstreamBody))
+                    await WriteOpenAiError(context, (int)upstreamResp.StatusCode,
+                        $"Upstream returned {(int)upstreamResp.StatusCode} {upstreamResp.ReasonPhrase}.",
+                        "upstream_error", "upstream_no_body");
+                else
+                {
+                    context.Response.StatusCode = (int)upstreamResp.StatusCode;
+                    context.Response.ContentType = upstreamResp.Content.Headers.ContentType?.ToString() ?? "application/json";
+                    await context.Response.WriteAsync(upstreamBody, context.RequestAborted);
+                }
+                return;
+            }
+
+            // 2) Upstream payload -> OpenAI ChatCompletion (du hast das schon)
+            var openAi = BuildChatCompletionResponse(model, upstreamBody);
+
+            await WriteChatCompletionStream(context, openAi, includeUsage);
+            return;
+        }
+
+        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, "chat-completion-sync")
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
@@ -145,23 +188,9 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
         var client = httpClientFactory.CreateClient("Nele");
         using var response = await client.SendAsync(
             requestMessage,
-            isStream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
+            HttpCompletionOption.ResponseContentRead,
             context.RequestAborted);
 
-        if (isStream)
-        {
-            context.Response.StatusCode = (int)response.StatusCode;
-            context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "text/event-stream";
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorBody = await response.Content.ReadAsStringAsync(context.RequestAborted);
-                await context.Response.WriteAsync(errorBody, context.RequestAborted);
-                return;
-            }
-
-            await response.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
-            return;
-        }
 
         var body = await response.Content.ReadAsStringAsync(context.RequestAborted);
         if (!response.IsSuccessStatusCode)
@@ -703,6 +732,22 @@ static string GetDefaultChatModel(IConfiguration config)
     return string.IsNullOrWhiteSpace(model) ? "google-claude-4.5-sonnet" : model.Trim();
 }
 
+static bool IsStreamingForced(IConfiguration config)
+{
+    return bool.TryParse(config["Nele:ForceStream"], out var forceStream) && forceStream;
+}
+
+static bool TryGetStreamIncludeUsage(JsonElement root)
+{
+    if (!root.TryGetProperty("stream_options", out var streamOptions) || streamOptions.ValueKind != JsonValueKind.Object)
+    {
+        return false;
+    }
+
+    return streamOptions.TryGetProperty("include_usage", out var includeUsage)
+        && includeUsage.ValueKind == JsonValueKind.True;
+}
+
 static string ResolveChatModel(JsonElement root, string defaultModel)
 {
     var model = GetStringProperty(root, "model");
@@ -874,6 +919,105 @@ static JsonObject BuildChatCompletionResponse(string model, string payload)
             ["total_tokens"] = 0
         }
     };
+}
+
+static async Task WriteChatCompletionStream(HttpContext context, JsonObject openAiResponse, bool includeUsage)
+{
+    context.Response.StatusCode = StatusCodes.Status200OK;
+    context.Response.ContentType = "text/event-stream; charset=utf-8";
+    context.Response.Headers["Cache-Control"] = "no-cache";
+    context.Response.Headers["Connection"] = "keep-alive";
+    context.Response.Headers["X-Accel-Buffering"] = "no";
+
+    var id = openAiResponse["id"]?.ToString() ?? $"chatcmpl-{Guid.NewGuid():N}";
+    var created = openAiResponse["created"]?.GetValue<long>() ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    var model = openAiResponse["model"]?.ToString() ?? "unknown";
+
+    var choices = openAiResponse["choices"] as JsonArray;
+    var choice = choices is not null && choices.Count > 0 ? choices[0] as JsonObject : null;
+    var message = choice?["message"] as JsonObject;
+    var finishReason = choice?["finish_reason"]?.ToString() ?? "stop";
+
+    var delta = new JsonObject { ["role"] = "assistant" };
+    var content = message?["content"]?.ToString();
+    if (!string.IsNullOrWhiteSpace(content) && !string.Equals(content, "null", StringComparison.OrdinalIgnoreCase))
+    {
+        delta["content"] = content;
+    }
+
+    if (message?["tool_calls"] is JsonNode toolCalls)
+    {
+        delta["tool_calls"] = toolCalls.DeepClone();
+    }
+
+    var firstChunk = new JsonObject
+    {
+        ["id"] = id,
+        ["object"] = "chat.completion.chunk",
+        ["created"] = created,
+        ["model"] = model,
+        ["choices"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["index"] = 0,
+                ["delta"] = delta,
+                ["finish_reason"] = null
+            }
+        }
+    };
+
+    await WriteSseEvent(context, firstChunk);
+
+    var finalChunk = new JsonObject
+    {
+        ["id"] = id,
+        ["object"] = "chat.completion.chunk",
+        ["created"] = created,
+        ["model"] = model,
+        ["choices"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["index"] = 0,
+                ["delta"] = new JsonObject(),
+                ["finish_reason"] = finishReason
+            }
+        }
+    };
+
+    await WriteSseEvent(context, finalChunk);
+
+    if (includeUsage)
+    {
+        var usage = openAiResponse["usage"]?.DeepClone() ?? new JsonObject
+        {
+            ["prompt_tokens"] = 0,
+            ["completion_tokens"] = 0,
+            ["total_tokens"] = 0
+        };
+
+        var usageChunk = new JsonObject
+        {
+            ["id"] = id,
+            ["object"] = "chat.completion.chunk",
+            ["created"] = created,
+            ["model"] = model,
+            ["choices"] = new JsonArray(),
+            ["usage"] = usage
+        };
+
+        await WriteSseEvent(context, usageChunk);
+    }
+
+    await context.Response.WriteAsync("data: [DONE]\n\n", context.RequestAborted);
+    await context.Response.Body.FlushAsync(context.RequestAborted);
+}
+
+static async Task WriteSseEvent(HttpContext context, JsonObject payload)
+{
+    await context.Response.WriteAsync($"data: {payload.ToJsonString()}\n\n", context.RequestAborted);
+    await context.Response.Body.FlushAsync(context.RequestAborted);
 }
 
 static string MapTranscriptionModel(string model)
