@@ -130,7 +130,12 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
         var isStream = streamRequested || forceStream;
         var defaultModel = GetDefaultChatModel(config);
         var model = ResolveChatModel(root, defaultModel);
-        var nelePayload = BuildChatCompletionPayload(root, model);
+        var nelePayload = await BuildChatCompletionPayloadAsync(root, model, context, httpClientFactory, config);
+        if (nelePayload is null)
+        {
+            return;
+        }
+
         var json = nelePayload.ToJsonString();
 
         if (isStream)
@@ -595,7 +600,7 @@ static bool TryFindModel(JsonElement root, string id, out JsonObject model)
     return false;
 }
 
-static JsonObject BuildChatCompletionPayload(JsonElement root, string model)
+static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root, string model, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
 {
     var payload = new JsonObject();
 
@@ -607,15 +612,27 @@ static JsonObject BuildChatCompletionPayload(JsonElement root, string model)
     CopyProperty(root, payload, "tool_choice");
     CopyProperty(root, payload, "tools");
 
+    var modelConfiguration = BuildModelConfiguration(root, config);
+    if (modelConfiguration is not null)
+    {
+        payload["modelConfiguration"] = modelConfiguration;
+    }
+
     if (root.TryGetProperty("messages", out var messagesValue))
     {
-        payload["messages"] = NormalizeMessages(messagesValue);
+        var messages = await NormalizeMessagesAsync(messagesValue, context, httpClientFactory, config);
+        if (messages is null)
+        {
+            return null;
+        }
+
+        payload["messages"] = messages;
     }
 
     return payload;
 }
 
-static JsonArray NormalizeMessages(JsonElement messagesValue)
+static async Task<JsonArray?> NormalizeMessagesAsync(JsonElement messagesValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
 {
     var messages = new JsonArray();
     if (messagesValue.ValueKind != JsonValueKind.Array)
@@ -625,33 +642,94 @@ static JsonArray NormalizeMessages(JsonElement messagesValue)
 
     foreach (var message in messagesValue.EnumerateArray())
     {
-        if (!TryNormalizeMessage(message, out var normalized))
+        var (success, normalized) = await TryNormalizeMessageAsync(message, context, httpClientFactory, config);
+        if (!success)
         {
-            continue;
+            return null;
         }
 
-        messages.Add(normalized);
+        if (normalized is not null)
+        {
+            messages.Add(normalized);
+        }
     }
 
     return messages;
 }
 
-static bool TryNormalizeMessage(JsonElement message, out JsonObject normalized)
+static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsync(JsonElement message, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
 {
-    normalized = new JsonObject();
     if (message.ValueKind != JsonValueKind.Object)
     {
-        return false;
+        return (true, null);
     }
 
+    var normalized = new JsonObject();
     CopyProperty(message, normalized, "role");
     CopyProperty(message, normalized, "name");
+
+    var attachments = new JsonArray();
+    if (message.TryGetProperty("attachments", out var attachmentsValue) && attachmentsValue.ValueKind == JsonValueKind.Array)
+    {
+        foreach (var attachment in attachmentsValue.EnumerateArray())
+        {
+            attachments.Add(JsonNode.Parse(attachment.GetRawText()));
+        }
+    }
 
     if (message.TryGetProperty("content", out var contentValue))
     {
         if (contentValue.ValueKind == JsonValueKind.Array)
         {
-            normalized["content"] = ExtractTextContent(contentValue);
+            var contentText = new StringBuilder();
+            foreach (var part in contentValue.EnumerateArray())
+            {
+                if (part.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var partType = GetStringProperty(part, "type");
+                if (string.Equals(partType, "text", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(partType, "input_text", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (part.TryGetProperty("text", out var textValue))
+                    {
+                        if (contentText.Length > 0)
+                        {
+                            contentText.Append('\n');
+                        }
+
+                        contentText.Append(textValue.GetString());
+                    }
+
+                    continue;
+                }
+
+                if (string.Equals(partType, "image_url", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!part.TryGetProperty("image_url", out var imageValue) || imageValue.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    var url = GetStringProperty(imageValue, "url");
+                    if (string.IsNullOrWhiteSpace(url))
+                    {
+                        continue;
+                    }
+
+                    var attachment = await TryUploadImageAttachmentAsync(url, imageValue, context, httpClientFactory, config);
+                    if (attachment is null)
+                    {
+                        return (false, null);
+                    }
+
+                    attachments.Add(attachment);
+                }
+            }
+
+            normalized["content"] = contentText.ToString();
         }
         else
         {
@@ -659,10 +737,14 @@ static bool TryNormalizeMessage(JsonElement message, out JsonObject normalized)
         }
     }
 
-    CopyProperty(message, normalized, "attachments");
+    if (attachments.Count > 0)
+    {
+        normalized["attachments"] = attachments;
+    }
+
     CopyProperty(message, normalized, "results");
 
-    return true;
+    return (true, normalized);
 }
 
 static string ExtractTextContent(JsonElement contentValue)
@@ -701,6 +783,204 @@ static string ExtractTextContent(JsonElement contentValue)
     return builder.ToString();
 }
 
+static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonElement imageValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
+{
+    if (!TryGetImageDetail(imageValue, out var detail))
+    {
+        detail = null;
+    }
+
+    var imageContent = await TryGetImageContentAsync(url, context.RequestAborted);
+    if (!imageContent.Success)
+    {
+        await WriteOpenAiError(context, StatusCodes.Status400BadRequest, imageContent.ErrorMessage, "invalid_request_error", "invalid_image_url");
+        return null;
+    }
+
+    using var multipart = new MultipartFormDataContent();
+    var fileContent = new ByteArrayContent(imageContent.Data);
+    if (!string.IsNullOrWhiteSpace(imageContent.ContentType))
+    {
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(imageContent.ContentType);
+    }
+
+    multipart.Add(fileContent, "file", imageContent.FileName);
+
+    using var requestMessage = new HttpRequestMessage(HttpMethod.Post, "image-attachment")
+    {
+        Content = multipart
+    };
+
+    if (!TryApplyAuthorization(requestMessage, context.Request, config))
+    {
+        await WriteMissingAuth(context);
+        return null;
+    }
+
+    var client = httpClientFactory.CreateClient("Nele");
+    using var response = await client.SendAsync(requestMessage, HttpCompletionOption.ResponseContentRead, context.RequestAborted);
+    var payload = await response.Content.ReadAsStringAsync(context.RequestAborted);
+    if (!response.IsSuccessStatusCode)
+    {
+        context.Response.StatusCode = (int)response.StatusCode;
+        context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json";
+        await context.Response.WriteAsync(payload, context.RequestAborted);
+        return null;
+    }
+
+    using var doc = JsonDocument.Parse(payload);
+    if (!doc.RootElement.TryGetProperty("path", out var pathValue))
+    {
+        await WriteOpenAiError(context, StatusCodes.Status502BadGateway, "Upstream did not return image path.", "upstream_error", "image_attachment_missing_path");
+        return null;
+    }
+
+    var path = pathValue.GetString();
+    if (string.IsNullOrWhiteSpace(path))
+    {
+        await WriteOpenAiError(context, StatusCodes.Status502BadGateway, "Upstream returned empty image path.", "upstream_error", "image_attachment_empty_path");
+        return null;
+    }
+
+    var attachment = new JsonObject
+    {
+        ["type"] = "image",
+        ["id"] = path,
+        ["name"] = imageContent.FileName,
+        ["content"] = path
+    };
+
+    if (!string.IsNullOrWhiteSpace(detail))
+    {
+        attachment["detail"] = detail;
+    }
+
+    return attachment;
+}
+
+static bool TryGetImageDetail(JsonElement imageValue, out string? detail)
+{
+    detail = null;
+    if (imageValue.TryGetProperty("detail", out var detailValue) && detailValue.ValueKind == JsonValueKind.String)
+    {
+        detail = detailValue.GetString();
+        return true;
+    }
+
+    return false;
+}
+
+static async Task<(bool Success, byte[] Data, string ContentType, string FileName, string ErrorMessage)> TryGetImageContentAsync(string url, CancellationToken cancellationToken)
+{
+    var data = Array.Empty<byte>();
+    var contentType = string.Empty;
+    var fileName = "image";
+    var errorMessage = "Invalid image_url.";
+
+    if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+    {
+        if (!TryParseDataUrl(url, out data, out contentType))
+        {
+            errorMessage = "Invalid data URL for image_url.";
+            return (false, data, contentType, fileName, errorMessage);
+        }
+
+        fileName = EnsureFileNameExtension("image", contentType);
+        return (true, data, contentType, fileName, errorMessage);
+    }
+
+    if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+    {
+        errorMessage = "image_url must be a data URL or an http(s) URL.";
+        return (false, data, contentType, fileName, errorMessage);
+    }
+
+    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+    using var response = await httpClient.GetAsync(uri, cancellationToken);
+    if (!response.IsSuccessStatusCode)
+    {
+        errorMessage = $"Failed to download image_url: {(int)response.StatusCode} {response.ReasonPhrase}.";
+        return (false, data, contentType, fileName, errorMessage);
+    }
+
+    data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+    fileName = EnsureFileNameExtension(GetFileNameFromUrl(uri), contentType);
+    return (true, data, contentType, fileName, errorMessage);
+}
+
+static bool TryParseDataUrl(string url, out byte[] data, out string contentType)
+{
+    data = Array.Empty<byte>();
+    contentType = string.Empty;
+
+    var commaIndex = url.IndexOf(',');
+    if (commaIndex <= 0)
+    {
+        return false;
+    }
+
+    var header = url.Substring(5, commaIndex - 5);
+    var payload = url[(commaIndex + 1)..];
+    if (!header.Contains(";base64", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    var typeSplit = header.Split(';', StringSplitOptions.RemoveEmptyEntries);
+    if (typeSplit.Length > 0)
+    {
+        contentType = typeSplit[0];
+    }
+
+    try
+    {
+        data = Convert.FromBase64String(payload);
+        return true;
+    }
+    catch (FormatException)
+    {
+        return false;
+    }
+}
+
+static string GetFileNameFromUrl(Uri uri)
+{
+    var name = Path.GetFileName(uri.LocalPath);
+    return string.IsNullOrWhiteSpace(name) ? "image" : name;
+}
+
+static string EnsureFileNameExtension(string fileName, string contentType)
+{
+    if (Path.HasExtension(fileName))
+    {
+        return fileName;
+    }
+
+    var extension = GetExtensionForContentType(contentType);
+    return string.IsNullOrWhiteSpace(extension) ? fileName : $"{fileName}.{extension}";
+}
+
+static string GetExtensionForContentType(string contentType)
+{
+    if (string.IsNullOrWhiteSpace(contentType))
+    {
+        return string.Empty;
+    }
+
+    return contentType.ToLowerInvariant() switch
+    {
+        "image/jpeg" => "jpg",
+        "image/jpg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        "image/svg+xml" => "svg",
+        _ when contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) => contentType["image/".Length..],
+        _ => string.Empty
+    };
+}
+
 static void CopyProperty(JsonElement source, JsonObject target, string propertyName)
 {
     if (!source.TryGetProperty(propertyName, out var value))
@@ -732,9 +1012,45 @@ static string GetDefaultChatModel(IConfiguration config)
     return string.IsNullOrWhiteSpace(model) ? "google-claude-4.5-sonnet" : model.Trim();
 }
 
+static string GetDefaultReasoningEffort(IConfiguration config)
+{
+    var effort = config["Nele:ModelConfiguration:ReasoningEffort"];
+    return string.IsNullOrWhiteSpace(effort) ? "high" : effort.Trim();
+}
+
 static bool IsStreamingForced(IConfiguration config)
 {
     return bool.TryParse(config["Nele:ForceStream"], out var forceStream) && forceStream;
+}
+
+static JsonObject? BuildModelConfiguration(JsonElement root, IConfiguration config)
+{
+    JsonObject? modelConfiguration = null;
+    var defaultReasoning = GetDefaultReasoningEffort(config);
+    if (!string.IsNullOrWhiteSpace(defaultReasoning))
+    {
+        modelConfiguration = new JsonObject
+        {
+            ["reasoning_effort"] = defaultReasoning
+        };
+    }
+
+    if (root.TryGetProperty("modelConfiguration", out var modelConfigValue) && modelConfigValue.ValueKind == JsonValueKind.Object)
+    {
+        modelConfiguration ??= new JsonObject();
+        foreach (var property in modelConfigValue.EnumerateObject())
+        {
+            modelConfiguration[property.Name] = JsonNode.Parse(property.Value.GetRawText());
+        }
+    }
+
+    if (root.TryGetProperty("reasoning_effort", out var reasoningOverride) && reasoningOverride.ValueKind == JsonValueKind.String)
+    {
+        modelConfiguration ??= new JsonObject();
+        modelConfiguration["reasoning_effort"] = reasoningOverride.GetString();
+    }
+
+    return modelConfiguration;
 }
 
 static bool TryGetStreamIncludeUsage(JsonElement root)
@@ -841,6 +1157,35 @@ static bool TryBuildResponsesMessages(JsonElement root, out JsonArray messages, 
     return false;
 }
 
+static bool TryNormalizeMessage(JsonElement message, out JsonObject normalized)
+{
+    normalized = new JsonObject();
+    if (message.ValueKind != JsonValueKind.Object)
+    {
+        return false;
+    }
+
+    CopyProperty(message, normalized, "role");
+    CopyProperty(message, normalized, "name");
+
+    if (message.TryGetProperty("content", out var contentValue))
+    {
+        if (contentValue.ValueKind == JsonValueKind.Array)
+        {
+            normalized["content"] = ExtractTextContent(contentValue);
+        }
+        else
+        {
+            normalized["content"] = JsonNode.Parse(contentValue.GetRawText());
+        }
+    }
+
+    CopyProperty(message, normalized, "attachments");
+    CopyProperty(message, normalized, "results");
+
+    return true;
+}
+
 static JsonObject BuildResponsesResponse(string model, string payload)
 {
     using var doc = JsonDocument.Parse(payload);
@@ -897,7 +1242,7 @@ static JsonObject BuildChatCompletionResponse(string model, string payload)
 
     var finishReason = message["tool_calls"] is null ? "stop" : "tool_calls";
 
-    return new JsonObject
+    var response = new JsonObject
     {
         ["id"] = $"chatcmpl-{Guid.NewGuid():N}",
         ["object"] = "chat.completion",
@@ -919,6 +1264,13 @@ static JsonObject BuildChatCompletionResponse(string model, string payload)
             ["total_tokens"] = 0
         }
     };
+
+    if (root.TryGetProperty("web_search_results", out var webSearchResults) && webSearchResults.ValueKind != JsonValueKind.Null)
+    {
+        response["web_search_results"] = JsonNode.Parse(webSearchResults.GetRawText());
+    }
+
+    return response;
 }
 
 static async Task WriteChatCompletionStream(HttpContext context, JsonObject openAiResponse, bool includeUsage)

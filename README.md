@@ -64,7 +64,10 @@ Beispiel:
     "BaseUrl": "https://api.aieva.io/api:v1/",
     "ApiKey": "YOUR_NELE_API_KEY",
     "DefaultChatModel": "google-claude-4.5-sonnet",
-    "ForceStream": false
+    "ForceStream": false,
+    "ModelConfiguration": {
+      "ReasoningEffort": "high"
+    }
   }
 }
 ```
@@ -240,4 +243,5 @@ Beispielausgabe:
 ## Hinweise
 - Wenn `model` fehlt, wird `Nele:DefaultChatModel` genutzt.
 - `Nele:ForceStream=true` erzwingt Streaming-Antworten fuer `/v1/chat/completions` (SSE), auch wenn der Client kein `stream: true` sendet.
+- `Nele:ModelConfiguration:ReasoningEffort` steuert den Default fuer `modelConfiguration.reasoning_effort` (kann per Request ueberschrieben werden).
 - Die API liefert keine offiziellen Kontext-Fenster-Groessen pro Modell.
