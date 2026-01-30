@@ -13,9 +13,10 @@ public sealed class ThemeService
             return;
         }
 
+        var themeName = darkMode ? "Dark" : "Light";
         var dictionary = new ResourceDictionary
         {
-            Source = new Uri(darkMode ? "Themes/Dark.xaml" : "Themes/Light.xaml", UriKind.Relative)
+            Source = new Uri($"pack://application:,,,/NeleDesktop;component/Themes/{themeName}.xaml", UriKind.Absolute)
         };
 
         WpfApplication.Current.Resources.MergedDictionaries.Clear();

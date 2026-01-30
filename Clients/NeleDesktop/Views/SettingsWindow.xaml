@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="Settings" Width="520" Height="620"
+        Title="Settings" Width="520" Height="940"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
@@ -40,116 +40,209 @@
 
         <Grid Grid.Row="1" Margin="24,16,24,0">
             <StackPanel>
-                <TextBlock Text="API key" FontWeight="SemiBold" />
-                <Grid Margin="0,6,0,0">
-                    <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
-                             TextChanged="ApiKey_TextChanged" />
-                    <TextBlock Text="API Key erforderlich"
-                               Margin="12,0,0,0"
-                               Foreground="{DynamicResource SecondaryTextBrush}"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ApiKey}" Value="">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ApiKey}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Grid>
-                <TextBlock Text="{Binding ApiKeyErrorMessage}"
-                           Foreground="{DynamicResource AttentionBrush}"
+                <Border BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="12"
+                        Background="{DynamicResource PanelBackgroundBrush}">
+                    <StackPanel>
+                        <TextBlock Text="General"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="API key" FontWeight="SemiBold" />
+                        <Grid Margin="0,6,0,0">
+                            <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                     TextChanged="ApiKey_TextChanged" />
+                            <TextBlock Text="API Key erforderlich"
+                                       Margin="12,0,0,0"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ApiKey}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ApiKey}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <TextBlock Text="{Binding ApiKeyErrorMessage}"
+                                   Foreground="{DynamicResource AttentionBrush}"
+                                   FontSize="11"
+                                   Margin="0,6,0,0"
+                                   Visibility="{Binding HasApiKeyError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                        <TextBlock Text="Base URL" FontWeight="SemiBold" Margin="0,16,0,0" />
+                        <TextBox Margin="0,6,0,0" Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Autostart mit Windows"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <ToggleButton x:Name="AutoStartToggle"
+                                          Grid.Column="1"
+                                          Style="{StaticResource FuturisticToggleButtonStyle}"
+                                          IsChecked="{Binding AutoStartEnabled}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="12"
+                        Margin="0,16,0,0"
+                        Background="{DynamicResource PanelBackgroundBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Models"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="Standard Model" FontWeight="SemiBold" />
+                        <Grid Margin="0,6,0,0">
+                            <ComboBox ItemsSource="{Binding Models}"
+                                      SelectedItem="{Binding SelectedModel}"
+                                      IsEnabled="{Binding IsModelSelectionEnabled}">
+                                <ComboBox.Style>
+                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsModelSelectionEnabled}" Value="False">
+                                                <Setter Property="Opacity" Value="0.6" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.Style>
+                            </ComboBox>
+                            <TextBlock Text="{Binding ModelPlaceholder}"
+                                       Margin="12,0,0,0"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+
+                        <TextBlock Text="Temporary chat model" FontWeight="SemiBold" Margin="0,16,0,0" />
+                        <Grid Margin="0,6,0,0">
+                            <ComboBox ItemsSource="{Binding Models}"
+                                      SelectedItem="{Binding TemporaryModel}"
+                                      IsEnabled="{Binding IsModelSelectionEnabled}">
+                                <ComboBox.Style>
+                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsModelSelectionEnabled}" Value="False">
+                                                <Setter Property="Opacity" Value="0.6" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.Style>
+                            </ComboBox>
+                            <TextBlock Text="{Binding ModelPlaceholder}"
+                                       Margin="12,0,0,0"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="12"
+                        Margin="0,16,0,0"
+                        Background="{DynamicResource PanelBackgroundBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Skills"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Margin="0,0,0,10" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Web search default"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <ToggleButton x:Name="WebSearchDefaultToggle"
+                                          Grid.Column="1"
+                                          Style="{StaticResource FuturisticToggleButtonStyle}"
+                                          IsChecked="{Binding WebSearchEnabled}" />
+                        </Grid>
+
+                        <TextBlock Text="Transcription model" FontWeight="SemiBold" Margin="0,16,0,0" />
+                        <ComboBox x:Name="TranscriptionModelCombo"
+                                  Margin="0,6,0,0"
+                                  ItemsSource="{Binding TranscriptionModels}"
+                                  SelectedItem="{Binding TranscriptionModel}" />
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="12"
+                        Margin="0,16,0,0"
+                        Background="{DynamicResource PanelBackgroundBrush}">
+                    <StackPanel>
+                        <TextBlock Text="HotKeys"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="Hotkey" FontWeight="SemiBold" />
+                        <TextBox x:Name="HotkeyInput"
+                                 Margin="0,6,0,0"
+                                 Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
+                                 PreviewKeyDown="Hotkey_PreviewKeyDown"
+                                 GotKeyboardFocus="Hotkey_GotKeyboardFocus"
+                                 LostKeyboardFocus="Hotkey_LostKeyboardFocus"
+                                 IsReadOnly="True" />
+                        <TextBlock x:Name="HotkeyHint"
+                                   Text="Press keys to set hotkey"
+                                   FontSize="11"
+                                   Margin="0,4,0,0"
+                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Visibility="{Binding IsHotkeyCaptureActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                        <TextBlock Text="Temporary chat hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
+                        <TextBox x:Name="TemporaryHotkeyInput"
+                                 Margin="0,6,0,0"
+                                 Text="{Binding TemporaryHotkey, UpdateSourceTrigger=PropertyChanged}"
+                                 PreviewKeyDown="TemporaryHotkey_PreviewKeyDown"
+                                 GotKeyboardFocus="Hotkey_GotKeyboardFocus"
+                                 LostKeyboardFocus="Hotkey_LostKeyboardFocus"
+                                 IsReadOnly="True" />
+                        <TextBlock x:Name="TemporaryHotkeyHint"
+                                   Text="Press keys to set hotkey"
+                                   FontSize="11"
+                                   Margin="0,4,0,0"
+                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Visibility="{Binding IsTemporaryHotkeyCaptureActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding StatusMessage}"
                            FontSize="11"
-                           Margin="0,6,0,0"
-                           Visibility="{Binding HasApiKeyError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-                <TextBlock Text="Base URL" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <TextBox Margin="0,6,0,0" Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
-
-                <TextBlock Text="Standard Model" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <Grid Margin="0,6,0,0">
-                    <ComboBox ItemsSource="{Binding Models}"
-                              SelectedItem="{Binding SelectedModel}"
-                              IsEnabled="{Binding IsModelSelectionEnabled}">
-                        <ComboBox.Style>
-                            <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsModelSelectionEnabled}" Value="False">
-                                        <Setter Property="Opacity" Value="0.6" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ComboBox.Style>
-                    </ComboBox>
-                    <TextBlock Text="{Binding ModelPlaceholder}"
-                               Margin="12,0,0,0"
-                               Foreground="{DynamicResource SecondaryTextBrush}"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                </Grid>
-
-                <TextBlock Text="Temporary chat model" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <Grid Margin="0,6,0,0">
-                    <ComboBox ItemsSource="{Binding Models}"
-                              SelectedItem="{Binding TemporaryModel}"
-                              IsEnabled="{Binding IsModelSelectionEnabled}">
-                        <ComboBox.Style>
-                            <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsModelSelectionEnabled}" Value="False">
-                                        <Setter Property="Opacity" Value="0.6" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ComboBox.Style>
-                    </ComboBox>
-                    <TextBlock Text="{Binding ModelPlaceholder}"
-                               Margin="12,0,0,0"
-                               Foreground="{DynamicResource SecondaryTextBrush}"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsModelPlaceholderVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                </Grid>
-
-                <TextBlock Text="Hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <TextBox x:Name="HotkeyInput"
-                         Margin="0,6,0,0"
-                         Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
-                         PreviewKeyDown="Hotkey_PreviewKeyDown"
-                         GotKeyboardFocus="Hotkey_GotKeyboardFocus"
-                         LostKeyboardFocus="Hotkey_LostKeyboardFocus"
-                         IsReadOnly="True" />
-                <TextBlock x:Name="HotkeyHint"
-                           Text="Press keys to set hotkey"
-                           FontSize="11"
-                           Margin="0,4,0,0"
                            Foreground="{DynamicResource SecondaryTextBrush}"
-                           Visibility="{Binding IsHotkeyCaptureActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-                <TextBlock Text="Temporary chat hotkey" FontWeight="SemiBold" Margin="0,16,0,0" />
-                <TextBox x:Name="TemporaryHotkeyInput"
-                         Margin="0,6,0,0"
-                         Text="{Binding TemporaryHotkey, UpdateSourceTrigger=PropertyChanged}"
-                         PreviewKeyDown="TemporaryHotkey_PreviewKeyDown"
-                         GotKeyboardFocus="Hotkey_GotKeyboardFocus"
-                         LostKeyboardFocus="Hotkey_LostKeyboardFocus"
-                         IsReadOnly="True" />
-                <TextBlock x:Name="TemporaryHotkeyHint"
-                           Text="Press keys to set hotkey"
-                           FontSize="11"
-                           Margin="0,4,0,0"
-                           Foreground="{DynamicResource SecondaryTextBrush}"
-                           Visibility="{Binding IsTemporaryHotkeyCaptureActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-                <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,16,0,0" TextWrapping="Wrap" />
+                           Margin="0,12,0,0"
+                           TextWrapping="Wrap" />
             </StackPanel>
         </Grid>
 

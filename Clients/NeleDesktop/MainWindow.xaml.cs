@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using System.Windows.Controls;
 using WpfButton = System.Windows.Controls.Button;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using WpfDragEventArgs = System.Windows.DragEventArgs;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -16,11 +18,14 @@ using NeleDesktop.Models;
 using NeleDesktop.Services;
 using NeleDesktop.ViewModels;
 using NeleDesktop.Views;
+using WpfScreen = System.Windows.Forms.Screen;
 
 namespace NeleDesktop;
 
 public partial class MainWindow : Window
 {
+    private const int WmEnterSizeMove = 0x0231;
+    private const int WmExitSizeMove = 0x0232;
     private readonly MainViewModel _viewModel = new();
     private HotkeyService? _hotkeyService;
     private HotkeyService? _temporaryHotkeyService;
@@ -29,6 +34,7 @@ public partial class MainWindow : Window
     private double? _widthBeforeTemporaryChat;
     private SettingsWindow? _settingsWindow;
     private bool _isHotkeyCaptureActive;
+    private HwndSource? _windowSource;
 
     public MainWindow()
     {
@@ -66,7 +72,10 @@ public partial class MainWindow : Window
         AttachMessageCollection();
         if (string.IsNullOrWhiteSpace(_viewModel.Settings.ApiKey))
         {
-            await OpenSettingsAsync();
+            if (!App.IsAutoStartLaunch)
+            {
+                await OpenSettingsAsync();
+            }
         }
     }
 
@@ -76,6 +85,8 @@ public partial class MainWindow : Window
         _temporaryHotkeyService = new HotkeyService(this);
         _hotkeyService.Initialize();
         _temporaryHotkeyService.Initialize();
+        _windowSource = PresentationSource.FromVisual(this) as HwndSource;
+        _windowSource?.AddHook(WindowProc);
         _hotkeyService.HotkeyPressed += (_, _) =>
         {
             if (_isHotkeyCaptureActive)
@@ -95,6 +106,7 @@ public partial class MainWindow : Window
             OpenTemporaryChat();
         };
         ApplyHotkey();
+        UpdateMaximizedBounds();
     }
 
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -109,8 +121,10 @@ public partial class MainWindow : Window
             return;
         }
 
+        _viewModel.FlushWindowPlacement();
         _hotkeyService?.Dispose();
         _temporaryHotkeyService?.Dispose();
+        _windowSource?.RemoveHook(WindowProc);
     }
 
     private void ToggleVisibility()
@@ -312,6 +326,18 @@ public partial class MainWindow : Window
     private async Task OpenSettingsAsync()
     {
         var viewModel = _viewModel.CreateSettingsViewModel();
+        void HandleModelsChanged(object? sender, IReadOnlyList<string> models)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                _ = Dispatcher.InvokeAsync(() => viewModel.InitializeModels(models));
+                return;
+            }
+
+            viewModel.InitializeModels(models);
+        }
+
+        _viewModel.AvailableModelsChanged += HandleModelsChanged;
         var dialog = new SettingsWindow(viewModel)
         {
             Owner = this
@@ -319,6 +345,7 @@ public partial class MainWindow : Window
         _settingsWindow = dialog;
         dialog.Closed += (_, _) =>
         {
+            _viewModel.AvailableModelsChanged -= HandleModelsChanged;
             _settingsWindow = null;
             _isHotkeyCaptureActive = false;
         };
@@ -344,7 +371,15 @@ public partial class MainWindow : Window
             return;
         }
 
-        DragMove();
+        SetDragCacheEnabled(true);
+        try
+        {
+            DragMove();
+        }
+        finally
+        {
+            SetDragCacheEnabled(false);
+        }
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e)
@@ -370,6 +405,7 @@ public partial class MainWindow : Window
         }
 
         MaximizeIcon.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        UpdateMaximizedBounds();
 
         if (WindowState == WindowState.Minimized)
         {
@@ -587,6 +623,38 @@ public partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
+    private void UpdateMaximizedBounds()
+    {
+        if (WindowState != WindowState.Maximized)
+        {
+            MaxHeight = double.PositiveInfinity;
+            MaxWidth = double.PositiveInfinity;
+            return;
+        }
+
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var screen = WpfScreen.FromHandle(handle);
+        var workArea = screen.WorkingArea;
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget is null)
+        {
+            return;
+        }
+
+        var transform = source.CompositionTarget.TransformFromDevice;
+        var size = transform.Transform(new WpfPoint(workArea.Width, workArea.Height));
+        var origin = transform.Transform(new WpfPoint(workArea.Left, workArea.Top));
+        MaxHeight = size.Y;
+        MaxWidth = size.X;
+        Top = origin.Y;
+        Left = origin.X;
+    }
+
     private void OpenTemporaryChat()
     {
         CloseSettingsWindow();
@@ -769,6 +837,112 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private void ToolsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not WpfButton button)
+        {
+            return;
+        }
+
+        if (button.ContextMenu is null)
+        {
+            return;
+        }
+
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.IsOpen = true;
+    }
+
+    private void ChatDropZone_DragEnter(object sender, WpfDragEventArgs e)
+    {
+        UpdateDragOverlay(e);
+    }
+
+    private void ChatDropZone_DragOver(object sender, WpfDragEventArgs e)
+    {
+        UpdateDragOverlay(e);
+    }
+
+    private void ChatDropZone_DragLeave(object sender, WpfDragEventArgs e)
+    {
+        _viewModel.ResetDragOverlay();
+        e.Handled = true;
+    }
+
+    private async void ChatDropZone_Drop(object sender, WpfDragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+        {
+            if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] files && files.Length > 0)
+            {
+                var allowed = _viewModel.UpdateDragOverlayForFiles(files);
+                if (allowed)
+                {
+                    await _viewModel.AddPendingAttachmentsAsync(files);
+                }
+            }
+        }
+
+        _viewModel.ResetDragOverlay();
+        e.Handled = true;
+    }
+
+    private void UpdateDragOverlay(WpfDragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+        {
+            if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] files && files.Length > 0)
+            {
+                var allowed = _viewModel.UpdateDragOverlayForFiles(files);
+                e.Effects = allowed ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+            }
+            else
+            {
+                e.Effects = System.Windows.DragDropEffects.None;
+                _viewModel.ResetDragOverlay();
+            }
+        }
+        else
+        {
+            e.Effects = System.Windows.DragDropEffects.None;
+            _viewModel.ResetDragOverlay();
+        }
+
+        e.Handled = true;
+    }
+
+    private void RemovePendingAttachment_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is WpfButton button && button.DataContext is ChatAttachment attachment)
+        {
+            _viewModel.RemovePendingAttachment(attachment);
+        }
+    }
+
+    private void SetDragCacheEnabled(bool enabled)
+    {
+        if (MainRoot is null)
+        {
+            return;
+        }
+
+        MainRoot.CacheMode = enabled ? new BitmapCache(1.0) : null;
+    }
+
+    private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WmEnterSizeMove)
+        {
+            SetDragCacheEnabled(true);
+        }
+        else if (msg == WmExitSizeMove)
+        {
+            SetDragCacheEnabled(false);
+        }
+
+        return IntPtr.Zero;
     }
 }
 

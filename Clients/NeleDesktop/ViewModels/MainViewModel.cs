@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,6 +23,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly NeleApiClient _apiClient = new();
     private readonly ThemeService _themeService = new();
     private readonly ObservableCollection<ChatMessage> _emptyMessages = new();
+    private readonly ObservableCollection<ChatAttachment> _pendingAttachments = new();
+    private readonly AudioCaptureService _audioCaptureService = new();
 
     private AppSettings _settings = new();
     private AppState _state = new();
@@ -33,9 +36,16 @@ public sealed class MainViewModel : ObservableObject
     private double _sidebarWidth = ExpandedSidebarWidth;
     private ChatConversationViewModel? _temporaryChat;
     private bool _wasSidebarVisibleBeforeTemp = true;
+    private bool _isDragOverlayVisible;
+    private bool _isDragOverlayError;
+    private string _dragOverlayTitle = AttachmentPolicy.DefaultTitle;
+    private string _dragOverlaySubtitle = AttachmentPolicy.DefaultSubtitle;
+    private bool _isRecording;
+    private bool _isTranscribing;
     private CancellationTokenSource? _modelLoadCts;
     private Task? _modelLoadTask;
     private string _modelLoadApiKey = string.Empty;
+    private CancellationTokenSource? _windowPlacementSaveCts;
     public MainViewModel()
     {
         NewChatCommand = new RelayCommand(CreateNewChat);
@@ -43,12 +53,19 @@ public sealed class MainViewModel : ObservableObject
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, CanSendMessage);
         ToggleThemeCommand = new RelayCommand(ToggleTheme);
         ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
+        ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);
 
+        _pendingAttachments.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasPendingAttachments));
+            RaiseSendCanExecuteChanged();
+        };
     }
 
     public event EventHandler? HotkeyChanged;
     public event EventHandler? NewFolderRequested;
     public event EventHandler? ApiKeyMissing;
+    public event EventHandler<IReadOnlyList<string>>? AvailableModelsChanged;
 
     public ObservableCollection<ChatFolderViewModel> Folders { get; } = new();
 
@@ -57,6 +74,46 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<object> ConversationItems { get; } = new();
 
     public ObservableCollection<string> AvailableModels { get; } = new();
+
+    public ObservableCollection<ChatAttachment> PendingAttachments => _pendingAttachments;
+
+    public bool HasPendingAttachments => _pendingAttachments.Count > 0;
+
+    public bool IsDragOverlayVisible
+    {
+        get => _isDragOverlayVisible;
+        set => SetProperty(ref _isDragOverlayVisible, value);
+    }
+
+    public bool IsDragOverlayError
+    {
+        get => _isDragOverlayError;
+        set => SetProperty(ref _isDragOverlayError, value);
+    }
+
+    public string DragOverlayTitle
+    {
+        get => _dragOverlayTitle;
+        set => SetProperty(ref _dragOverlayTitle, value);
+    }
+
+    public string DragOverlaySubtitle
+    {
+        get => _dragOverlaySubtitle;
+        set => SetProperty(ref _dragOverlaySubtitle, value);
+    }
+
+    public bool IsRecording
+    {
+        get => _isRecording;
+        set => SetProperty(ref _isRecording, value);
+    }
+
+    public bool IsTranscribing
+    {
+        get => _isTranscribing;
+        set => SetProperty(ref _isTranscribing, value);
+    }
 
     public ICommand NewChatCommand { get; }
 
@@ -67,6 +124,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ToggleThemeCommand { get; }
 
     public ICommand ToggleSidebarCommand { get; }
+
+    public ICommand ToggleRecordingCommand { get; }
 
     public AppSettings Settings => _settings;
 
@@ -169,6 +228,7 @@ public sealed class MainViewModel : ObservableObject
         NormalizeState();
 
         _themeService.ApplyTheme(_settings.DarkMode);
+        ApplyAutoStartSetting();
 
         SeedAvailableModels();
         BuildViewModels();
@@ -210,6 +270,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsApiKeyAvailable));
         HotkeyChanged?.Invoke(this, EventArgs.Empty);
         await _dataStore.SaveSettingsAsync(_settings);
+        ApplyAutoStartSetting();
 
         if (!string.IsNullOrWhiteSpace(_settings.ApiKey) && !settingsViewModel.HasApiKeyError)
         {
@@ -495,7 +556,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         var text = (InputText ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(text) && _pendingAttachments.Count == 0)
         {
             return;
         }
@@ -517,6 +578,15 @@ public sealed class MainViewModel : ObservableObject
             Content = text,
             Timestamp = DateTimeOffset.UtcNow
         };
+        if (_pendingAttachments.Count > 0)
+        {
+            foreach (var attachment in _pendingAttachments)
+            {
+                userMessage.Attachments.Add(attachment);
+            }
+
+            _pendingAttachments.Clear();
+        }
 
         chat.Model.Messages.Add(userMessage);
         UpdateChatTitle(chat, text);
@@ -525,7 +595,7 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            var model = string.IsNullOrWhiteSpace(chat.SelectedModel)
+        var model = string.IsNullOrWhiteSpace(chat.SelectedModel)
                 ? ResolveDefaultModel()
                 : chat.SelectedModel;
 
@@ -595,7 +665,7 @@ public sealed class MainViewModel : ObservableObject
 
     private bool CanSendMessage()
     {
-        return !IsBusy && !string.IsNullOrWhiteSpace(InputText);
+        return !IsBusy && (!string.IsNullOrWhiteSpace(InputText) || _pendingAttachments.Count > 0);
     }
 
     private void RaiseSendCanExecuteChanged()
@@ -616,13 +686,260 @@ public sealed class MainViewModel : ObservableObject
         IsSidebarVisible = !IsSidebarVisible;
     }
 
+    private async Task ToggleRecordingAsync()
+    {
+        if (IsTranscribing)
+        {
+            return;
+        }
+
+        if (!IsRecording)
+        {
+            if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+            {
+                ApiKeyMissing?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            _audioCaptureService.Start();
+            IsRecording = true;
+            return;
+        }
+
+        IsRecording = false;
+        IsTranscribing = true;
+        try
+        {
+            var audioBytes = await _audioCaptureService.StopAsync();
+            if (audioBytes.Length == 0)
+            {
+                return;
+            }
+
+            if (audioBytes.Length > TranscriptionPolicy.MaxBytes)
+            {
+                var maxMb = Math.Round(TranscriptionPolicy.MaxBytes / 1024d / 1024d, 1);
+                StatusMessage = $"Audio zu gross (max {maxMb} MB).";
+                return;
+            }
+
+            var transcriptionModel = string.IsNullOrWhiteSpace(_settings.TranscriptionModel)
+                ? "azure-fast-transcription"
+                : _settings.TranscriptionModel;
+
+            var transcript = await _apiClient.TranscribeAudioAsync(
+                _settings.ApiKey,
+                _settings.BaseUrl,
+                transcriptionModel,
+                audioBytes,
+                "recording.wav",
+                null,
+                CancellationToken.None);
+
+            if (!string.IsNullOrWhiteSpace(transcript))
+            {
+                if (string.IsNullOrWhiteSpace(InputText))
+                {
+                    InputText = transcript.Trim();
+                }
+                else
+                {
+                    InputText = $"{InputText.Trim()} {transcript.Trim()}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+        finally
+        {
+            IsTranscribing = false;
+        }
+    }
+
     public void UpdateWindowPlacement(double left, double top, double width, double height)
     {
         _settings.WindowLeft = left;
         _settings.WindowTop = top;
         _settings.WindowWidth = width;
         _settings.WindowHeight = height;
-        _ = _dataStore.SaveWindowPlacementAsync(left, top, width, height);
+        QueueWindowPlacementSave();
+    }
+
+    public void UpdateAutoStartEnabled(bool enabled)
+    {
+        if (_settings.AutoStartEnabled == enabled)
+        {
+            return;
+        }
+
+        _settings.AutoStartEnabled = enabled;
+        _ = _dataStore.SaveSettingsAsync(_settings);
+        ApplyAutoStartSetting();
+    }
+
+    private void ApplyAutoStartSetting()
+    {
+        try
+        {
+            AutoStartService.SetEnabled(_settings.AutoStartEnabled);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Autostart update failed: {ex.Message}";
+        }
+    }
+
+    public async Task AddPendingAttachmentsAsync(IEnumerable<string> filePaths)
+    {
+        foreach (var path in filePaths)
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            if (_pendingAttachments.Any(attachment => string.Equals(attachment.SourcePath, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            try
+            {
+                var validation = AttachmentPolicy.ValidateFile(path);
+                if (!validation.IsValid)
+                {
+                    StatusMessage = validation.Title;
+                    continue;
+                }
+
+                var extension = Path.GetExtension(path);
+                if (AttachmentPolicy.IsImageExtension(extension))
+                {
+                    if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+                    {
+                        StatusMessage = "API key missing.";
+                        continue;
+                    }
+
+                    var uploadPath = await _apiClient.UploadImageAttachmentAsync(_settings.ApiKey, _settings.BaseUrl, path, CancellationToken.None);
+                    var attachment = CreateImageAttachment(path, uploadPath);
+                    if (attachment is not null)
+                    {
+                        _pendingAttachments.Add(attachment);
+                    }
+                }
+                else
+                {
+                    var attachment = await CreateTextAttachmentAsync(path);
+                    if (attachment is not null)
+                    {
+                        _pendingAttachments.Add(attachment);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to attach {Path.GetFileName(path)}: {ex.Message}";
+            }
+        }
+    }
+
+    public void RemovePendingAttachment(ChatAttachment attachment)
+    {
+        _pendingAttachments.Remove(attachment);
+    }
+
+    public bool UpdateDragOverlayForFiles(string[] files)
+    {
+        var validation = AttachmentPolicy.ValidateFiles(files);
+        DragOverlayTitle = validation.Title;
+        DragOverlaySubtitle = validation.Subtitle;
+        IsDragOverlayError = !validation.IsValid;
+        IsDragOverlayVisible = true;
+        return validation.IsValid;
+    }
+
+    public void ResetDragOverlay()
+    {
+        IsDragOverlayVisible = false;
+        IsDragOverlayError = false;
+        DragOverlayTitle = AttachmentPolicy.DefaultTitle;
+        DragOverlaySubtitle = AttachmentPolicy.DefaultSubtitle;
+    }
+
+    private static async Task<ChatAttachment?> CreateTextAttachmentAsync(string path)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists)
+        {
+            return null;
+        }
+
+        var extension = info.Extension.ToLowerInvariant();
+        var contentType = AttachmentPolicy.ResolveContentType(extension);
+        var content = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+
+        return new ChatAttachment
+        {
+            Type = "text",
+            FileName = info.Name,
+            ContentType = contentType,
+            SizeBytes = info.Length,
+            Content = content,
+            Encoding = "text",
+            SourcePath = path
+        };
+    }
+
+    private static ChatAttachment? CreateImageAttachment(string path, string uploadPath)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists)
+        {
+            return null;
+        }
+
+        var extension = info.Extension.ToLowerInvariant();
+        var contentType = AttachmentPolicy.ResolveContentType(extension);
+
+        return new ChatAttachment
+        {
+            Type = "image",
+            FileName = info.Name,
+            ContentType = contentType,
+            SizeBytes = info.Length,
+            Content = uploadPath,
+            Encoding = "path",
+            SourcePath = path,
+            Detail = "low"
+        };
+    }
+
+    public void FlushWindowPlacement()
+    {
+        _windowPlacementSaveCts?.Cancel();
+        _windowPlacementSaveCts = null;
+        _dataStore.SaveSettingsAsync(_settings).GetAwaiter().GetResult();
+    }
+
+    private void QueueWindowPlacementSave()
+    {
+        _windowPlacementSaveCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _windowPlacementSaveCts = cts;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(300, cts.Token).ConfigureAwait(false);
+                await _dataStore.SaveSettingsAsync(_settings).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
     }
 
     private async Task LoadAvailableModelsAsync(CancellationToken cancellationToken)
@@ -703,6 +1020,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         EnsureChatModels();
+        AvailableModelsChanged?.Invoke(this, AvailableModels.ToArray());
     }
 
     private void EnsureChatModels()
@@ -889,6 +1207,22 @@ public sealed class MainViewModel : ObservableObject
             }
 
             conversation.Messages ??= new ObservableCollection<ChatMessage>();
+            foreach (var message in conversation.Messages)
+            {
+                message.Attachments ??= new ObservableCollection<ChatAttachment>();
+                foreach (var attachment in message.Attachments)
+                {
+                    if (string.IsNullOrWhiteSpace(attachment.Id))
+                    {
+                        attachment.Id = Guid.NewGuid().ToString("N");
+                    }
+
+                    if (string.IsNullOrWhiteSpace(attachment.Type))
+                    {
+                        attachment.Type = "text";
+                    }
+                }
+            }
         }
     }
 }

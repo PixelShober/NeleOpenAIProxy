@@ -28,6 +28,7 @@ public sealed class AppDataStoreTests
                 DarkMode = false,
                 Hotkey = "Ctrl+Alt+Space",
                 TemporaryHotkey = "Ctrl+Alt+T",
+                TranscriptionModel = "azure-fast-transcription",
                 WindowLeft = 12,
                 WindowTop = 34,
                 WindowWidth = 560,
@@ -44,6 +45,7 @@ public sealed class AppDataStoreTests
             Assert.AreEqual(settings.DarkMode, loaded.DarkMode);
             Assert.AreEqual(settings.Hotkey, loaded.Hotkey);
             Assert.AreEqual(settings.TemporaryHotkey, loaded.TemporaryHotkey);
+            Assert.AreEqual(settings.TranscriptionModel, loaded.TranscriptionModel);
             Assert.AreEqual(settings.WindowLeft, loaded.WindowLeft);
             Assert.AreEqual(settings.WindowTop, loaded.WindowTop);
             Assert.AreEqual(settings.WindowWidth, loaded.WindowWidth);
@@ -76,6 +78,7 @@ public sealed class AppDataStoreTests
               "DarkMode": true,
               "Hotkey": "Ctrl+Alt+Space",
               "TemporaryHotkey": "Ctrl+Alt+T",
+              "TranscriptionModel": "azure-whisper",
               "WindowLeft": 10,
               "WindowTop": 20,
               "WindowWidth": 700,
@@ -95,6 +98,7 @@ public sealed class AppDataStoreTests
             Assert.IsTrue(loaded.DarkMode);
             Assert.AreEqual("Ctrl+Alt+Space", loaded.Hotkey);
             Assert.AreEqual("Ctrl+Alt+T", loaded.TemporaryHotkey);
+            Assert.AreEqual("azure-whisper", loaded.TranscriptionModel);
             Assert.AreEqual(10, loaded.WindowLeft);
             Assert.AreEqual(20, loaded.WindowTop);
             Assert.AreEqual(700, loaded.WindowWidth);
@@ -122,7 +126,8 @@ public sealed class AppDataStoreTests
             {
                 ApiKey = "persist-key",
                 BaseUrl = "http://localhost:5155/api:v1/",
-                SelectedModel = "model-a"
+                SelectedModel = "model-a",
+                TranscriptionModel = "azure-fast-transcription"
             };
 
             await store.SaveSettingsAsync(settings);
@@ -132,6 +137,7 @@ public sealed class AppDataStoreTests
             Assert.AreEqual("persist-key", loaded.ApiKey);
             Assert.AreEqual("http://localhost:5155/api:v1/", loaded.BaseUrl);
             Assert.AreEqual("model-a", loaded.SelectedModel);
+            Assert.AreEqual("azure-fast-transcription", loaded.TranscriptionModel);
             Assert.AreEqual(100, loaded.WindowLeft);
             Assert.AreEqual(200, loaded.WindowTop);
             Assert.AreEqual(800, loaded.WindowWidth);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -15,10 +16,13 @@ namespace NeleDesktop.Services;
 
 public sealed class NeleApiClient
 {
-    private readonly HttpClient _httpClient = new()
+    private readonly HttpClient _httpClient;
+
+    public NeleApiClient(HttpClient? httpClient = null)
     {
-        Timeout = TimeSpan.FromMinutes(2)
-    };
+        _httpClient = httpClient ?? new HttpClient();
+        _httpClient.Timeout = TimeSpan.FromMinutes(2);
+    }
 
     public async Task<IReadOnlyList<string>> GetModelsAsync(string apiKey, string baseUrl, CancellationToken cancellationToken)
     {
@@ -166,6 +170,75 @@ public sealed class NeleApiClient
             : string.Empty;
     }
 
+    public async Task<string> UploadImageAttachmentAsync(string apiKey, string baseUrl, string filePath, CancellationToken cancellationToken)
+    {
+        using var content = new MultipartFormDataContent();
+        var fileBytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
+        var fileContent = new ByteArrayContent(fileBytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        content.Add(fileContent, "file", Path.GetFileName(filePath));
+
+        var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(baseUrl, "image-attachment"))
+        {
+            Content = content
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Image upload failed ({(int)response.StatusCode}). {responseBody}");
+        }
+
+        using var document = JsonDocument.Parse(responseBody);
+        if (document.RootElement.TryGetProperty("path", out var pathValue))
+        {
+            return pathValue.GetString() ?? string.Empty;
+        }
+
+        throw new InvalidOperationException("Image upload response missing path.");
+    }
+
+    public async Task<string> TranscribeAudioAsync(
+        string apiKey,
+        string baseUrl,
+        string model,
+        byte[] audioBytes,
+        string fileName,
+        string? language,
+        CancellationToken cancellationToken)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(model), "model");
+        if (!string.IsNullOrWhiteSpace(language))
+        {
+            content.Add(new StringContent(language), "language");
+        }
+
+        var fileContent = new ByteArrayContent(audioBytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        content.Add(fileContent, "file", fileName);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(baseUrl, "transcription"))
+        {
+            Content = content
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Transcription failed ({(int)response.StatusCode}). {responseBody}");
+        }
+
+        using var document = JsonDocument.Parse(responseBody);
+        return document.RootElement.TryGetProperty("text", out var textValue)
+            ? textValue.GetString() ?? string.Empty
+            : string.Empty;
+    }
+
     private static Uri BuildUri(string baseUrl, string relative)
     {
         var trimmed = string.IsNullOrWhiteSpace(baseUrl) ? "https://api.aieva.io/api:v1/" : baseUrl.Trim();
@@ -235,11 +308,37 @@ public sealed class NeleApiClient
         var array = new JsonArray();
         foreach (var message in messages)
         {
-            array.Add(new JsonObject
+            var messageObject = new JsonObject
             {
                 ["role"] = message.Role,
                 ["content"] = message.Content
-            });
+            };
+
+            if (message.Attachments is { Count: > 0 })
+            {
+                var attachments = new JsonArray();
+                foreach (var attachment in message.Attachments)
+                {
+                    var attachmentObject = new JsonObject
+                    {
+                        ["type"] = attachment.Type,
+                        ["id"] = attachment.Id,
+                        ["name"] = attachment.FileName,
+                        ["content"] = attachment.Content
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(attachment.Detail))
+                    {
+                        attachmentObject["detail"] = attachment.Detail;
+                    }
+
+                    attachments.Add(attachmentObject);
+                }
+
+                messageObject["attachments"] = attachments;
+            }
+
+            array.Add(messageObject);
         }
 
         return array;

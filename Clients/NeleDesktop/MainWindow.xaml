@@ -6,6 +6,7 @@
         xmlns:models="clr-namespace:NeleDesktop.Models"
         xmlns:converters="clr-namespace:NeleDesktop.Converters"
         Title="Nele Chat" Width="760" Height="620" MinWidth="{Binding WindowMinWidth}" MinHeight="520"
+        Icon="Assets/NeleAi.ico"
         WindowStyle="None"
         ResizeMode="CanResize"
         Background="{DynamicResource WindowBackgroundBrush}"
@@ -17,11 +18,133 @@
         StateChanged="Window_StateChanged"
         LocationChanged="Window_LocationChanged"
         SizeChanged="Window_SizeChanged">
+    <Window.Resources>
+        <DataTemplate x:Key="AttachmentChipTemplate">
+            <Border Background="{DynamicResource SelectionBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="8,6"
+                    Margin="0,0,8,8">
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="40"
+                            Height="40"
+                            CornerRadius="8"
+                            Background="{DynamicResource WindowBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            Margin="0,0,8,0">
+                        <Grid>
+                            <Image Source="{Binding SourcePath}"
+                                   Stretch="UniformToFill"
+                                   Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                       Text="&#xE8A5;"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasPreview}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="{Binding FileName}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="220" />
+                        <TextBlock Text="{Binding TypeLabel}"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="PendingAttachmentTemplate">
+            <Border Background="{DynamicResource SelectionBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="8,6"
+                    Margin="0,0,8,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="40"
+                                Height="40"
+                                CornerRadius="8"
+                                Background="{DynamicResource WindowBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                Margin="0,0,8,0">
+                            <Grid>
+                                <Image Source="{Binding SourcePath}"
+                                       Stretch="UniformToFill"
+                                       Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                           Text="&#xE8A5;"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPreview}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="{Binding FileName}"
+                                       FontWeight="SemiBold"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="220" />
+                            <TextBlock Text="{Binding TypeLabel}"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource SecondaryTextBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="RemovePendingAttachment_Click"
+                            ToolTip="Remove"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Text="&#xE711;"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="44" CornerRadius="12" GlassFrameThickness="0" ResizeBorderThickness="6" />
     </shell:WindowChrome.WindowChrome>
 
-    <Grid>
+    <Grid x:Name="MainRoot">
         <Grid.RowDefinitions>
             <RowDefinition Height="44" />
             <RowDefinition Height="*" />
@@ -334,7 +457,13 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Column="1" Background="{DynamicResource WindowBackgroundBrush}">
+            <Grid Grid.Column="1"
+                  Background="{DynamicResource WindowBackgroundBrush}"
+                  AllowDrop="True"
+                  DragEnter="ChatDropZone_DragEnter"
+                  DragOver="ChatDropZone_DragOver"
+                  DragLeave="ChatDropZone_DragLeave"
+                  Drop="ChatDropZone_Drop">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -374,51 +503,108 @@
                     </StackPanel>
                 </Border>
 
-                <ScrollViewer x:Name="ChatScrollViewer"
-                              Grid.Row="1"
-                              Margin="20,0,20,8"
-                              VerticalScrollBarVisibility="Auto">
-                    <ScrollViewer.Style>
-                        <Style TargetType="ScrollViewer">
-                            <Setter Property="Opacity" Value="1" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
-                                    <Setter Property="Opacity" Value="0.6" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ScrollViewer.Style>
-                    <StackPanel>
-                        <ItemsControl ItemsSource="{Binding ActiveMessages}">
+                <Grid Grid.Row="1"
+                      Margin="20,0,20,8">
+                    <ScrollViewer x:Name="ChatScrollViewer"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Opacity" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                        <Setter Property="Opacity" Value="0.6" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding ActiveMessages}">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:ChatMessage}">
-                                    <StackPanel Margin="0,6" HorizontalAlignment="{Binding Role, Converter={StaticResource MessageAlignmentConverter}}">
+                                    <Grid Margin="0,6" HorizontalAlignment="Stretch">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
                                         <Border CornerRadius="14"
                                                 Padding="10,8"
-                                                MaxWidth="560">
+                                                Grid.Column="0"
+                                                Tag="MessageBubble">
+                                            <Border.MaxWidth>
+                                                <MultiBinding Converter="{StaticResource BubbleWidthConverter}">
+                                                    <Binding ElementName="ChatScrollViewer" Path="ActualWidth" />
+                                                    <Binding Path="Role" />
+                                                </MultiBinding>
+                                            </Border.MaxWidth>
+                                            <Border.MinWidth>
+                                                <MultiBinding Converter="{StaticResource BubbleWidthConverter}" ConverterParameter="min">
+                                                    <Binding ElementName="ChatScrollViewer" Path="ActualWidth" />
+                                                    <Binding Path="Role" />
+                                                </MultiBinding>
+                                            </Border.MinWidth>
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="{DynamicResource AssistantBubbleBrush}" />
+                                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                                    <Setter Property="Grid.ColumnSpan" Value="3" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Role}" Value="user">
                                                             <Setter Property="Background" Value="{DynamicResource UserBubbleBrush}" />
+                                                            <Setter Property="Grid.Column" Value="2" />
+                                                            <Setter Property="Grid.ColumnSpan" Value="1" />
+                                                            <Setter Property="HorizontalAlignment" Value="Right" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <RichTextBox converters:MarkdownRichTextBox.Text="{Binding Content}"
-                                                         IsReadOnly="True"
-                                                         BorderThickness="0"
-                                                         Background="Transparent"
-                                                         Padding="0"
-                                                         Margin="0"
-                                                         MinHeight="0"
-                                                         HorizontalScrollBarVisibility="Hidden"
-                                                         VerticalScrollBarVisibility="Hidden"
-                                                         Foreground="{DynamicResource PrimaryTextBrush}"
-                                                         Cursor="IBeam" />
+                                            <StackPanel>
+                                                <ItemsControl ItemsSource="{Binding Attachments}"
+                                                              ItemTemplate="{StaticResource AttachmentChipTemplate}"
+                                                              Visibility="{Binding Attachments.Count, Converter={StaticResource CountToVisibilityConverter}}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                </ItemsControl>
+                                                <RichTextBox converters:MarkdownRichTextBox.Text="{Binding Content}"
+                                                             IsReadOnly="True"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             Padding="0"
+                                                             Margin="0"
+                                                             MinHeight="0"
+                                                             MinWidth="0"
+                                                             HorizontalScrollBarVisibility="Hidden"
+                                                             VerticalScrollBarVisibility="Hidden"
+                                                             Foreground="{DynamicResource PrimaryTextBrush}"
+                                                             Cursor="IBeam">
+                                                    <RichTextBox.Style>
+                                                        <Style TargetType="RichTextBox">
+                                                            <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Role}" Value="user">
+                                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </RichTextBox.Style>
+                                                    <RichTextBox.MaxWidth>
+                                                        <MultiBinding Converter="{StaticResource BubbleWidthConverter}">
+                                                            <Binding ElementName="ChatScrollViewer" Path="ActualWidth" />
+                                                            <Binding Path="Role" />
+                                                        </MultiBinding>
+                                                    </RichTextBox.MaxWidth>
+                                                </RichTextBox>
+                                            </StackPanel>
                                         </Border>
-                                    </StackPanel>
+                                    </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -460,8 +646,10 @@
                                 </Ellipse.Triggers>
                             </Ellipse>
                         </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
 
                 <Border Grid.Row="2" Margin="20,8,20,20" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="14" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                     <Border.Style>
@@ -476,34 +664,182 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <Grid Margin="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <ToggleButton x:Name="WebSearchToggle"
-                                      Style="{StaticResource PlusToggleButtonStyle}"
-                                      ToolTip="Web search"
-                                      IsEnabled="{Binding IsApiKeyAvailable}"
-                                      IsChecked="{Binding SelectedChat.UseWebSearch, Mode=TwoWay}" />
-                        <TextBox x:Name="InputBox"
-                                 Grid.Column="1"
-                                 Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
-                                 AcceptsReturn="True"
-                                 MinHeight="56"
-                                 VerticalScrollBarVisibility="Auto"
-                                 TextWrapping="Wrap"
-                                 BorderThickness="0"
-                                 Background="Transparent"
-                                 Margin="8,0,0,0"
-                                 PreviewKeyDown="InputBox_KeyDown" />
-                        <Button Grid.Column="2"
-                                Margin="10,0,2,0"
-                                Style="{StaticResource SendButtonStyle}"
-                                Command="{Binding SendMessageCommand}">
-                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16" Text="&#xE72A;" />
-                        </Button>
+                    <StackPanel Margin="8,8,8,6">
+                        <ItemsControl x:Name="PendingAttachmentsPanel"
+                                      ItemsSource="{Binding PendingAttachments}"
+                                      ItemTemplate="{StaticResource PendingAttachmentTemplate}"
+                                      Visibility="{Binding PendingAttachments.Count, Converter={StaticResource CountToVisibilityConverter}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <Grid Margin="0,2,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="ToolsButton"
+                                    Style="{StaticResource PlusMenuButtonStyle}"
+                                    ToolTip="Tools"
+                                    Click="ToolsButton_Click"
+                                    IsEnabled="{Binding IsApiKeyAvailable}">
+                                <Button.ContextMenu>
+                                    <ContextMenu Placement="Bottom"
+                                                 DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Web search"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding SelectedChat.UseWebSearch, Mode=TwoWay}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <TextBox x:Name="InputBox"
+                                     Grid.Column="1"
+                                     Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     MinHeight="56"
+                                     VerticalScrollBarVisibility="Auto"
+                                     TextWrapping="Wrap"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Margin="8,0,0,0"
+                                     PreviewKeyDown="InputBox_KeyDown" />
+                            <Button x:Name="MicButton"
+                                    Grid.Column="2"
+                                    Margin="10,0,2,0"
+                                    Command="{Binding ToggleRecordingCommand}"
+                                    IsEnabled="{Binding IsApiKeyAvailable}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                        <Setter Property="ToolTip" Value="Voice input" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource AttentionBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsTranscribing}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14"
+                                           Text="&#xE720;">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FFFFFF" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsTranscribing}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE895;" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Button>
+                            <Button Grid.Column="3"
+                                    Margin="10,0,2,0"
+                                    Style="{StaticResource SendButtonStyle}"
+                                    Command="{Binding SendMessageCommand}">
+                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14"
+                                           Text="&#xE72A;"
+                                           Foreground="{DynamicResource SecondaryTextBrush}" />
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ChatDragOverlay"
+                        Grid.Row="0"
+                        Grid.RowSpan="3"
+                        Margin="20,16,20,20"
+                        Background="#CC1C1F24"
+                        CornerRadius="16"
+                        BorderThickness="1.5"
+                        IsHitTestVisible="False"
+                        Panel.ZIndex="5">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Opacity" Value="0" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDragOverlayError}" Value="True">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource AttentionBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsDragOverlayVisible}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="1"
+                                                                 Duration="0:0:0.2" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="0"
+                                                                 Duration="0:0:0.2" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid Margin="24">
+                        <Rectangle RadiusX="14"
+                                   RadiusY="14"
+                                   StrokeThickness="1.5"
+                                   StrokeDashArray="4 2"
+                                   Fill="Transparent">
+                            <Rectangle.Style>
+                                <Style TargetType="Rectangle">
+                                    <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDragOverlayError}" Value="True">
+                                            <Setter Property="Stroke" Value="{DynamicResource AttentionBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Rectangle.Style>
+                        </Rectangle>
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                       Text="&#xE8A5;"
+                                       FontSize="26"
+                                       HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDragOverlayError}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource AttentionBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding DragOverlayTitle}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,8,0,2" />
+                            <TextBlock Text="{Binding DragOverlaySubtitle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>

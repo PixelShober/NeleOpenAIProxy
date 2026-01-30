@@ -16,6 +16,7 @@ public sealed class SettingsViewModel : ObservableObject
     private string _baseUrl = string.Empty;
     private string _selectedModel = string.Empty;
     private string _temporaryModel = string.Empty;
+    private string _transcriptionModel = string.Empty;
     private string _hotkey = string.Empty;
     private string _temporaryHotkey = string.Empty;
     private bool _webSearchEnabled;
@@ -25,6 +26,7 @@ public sealed class SettingsViewModel : ObservableObject
     private int _webSearchQueriesMin;
     private int _webSearchQueriesMax;
     private bool _isDarkMode;
+    private bool _autoStartEnabled;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
     private string _apiKeyErrorMessage = string.Empty;
@@ -46,6 +48,14 @@ public sealed class SettingsViewModel : ObservableObject
         _temporaryModel = string.IsNullOrWhiteSpace(settings.TemporaryChatModel)
             ? settings.SelectedModel
             : settings.TemporaryChatModel;
+        _transcriptionModel = string.IsNullOrWhiteSpace(settings.TranscriptionModel)
+            ? "azure-fast-transcription"
+            : settings.TranscriptionModel;
+        if (!string.IsNullOrWhiteSpace(_transcriptionModel)
+            && !TranscriptionModels.Contains(_transcriptionModel))
+        {
+            _transcriptionModel = TranscriptionModels[0];
+        }
         _hotkey = settings.Hotkey;
         _temporaryHotkey = settings.TemporaryHotkey;
         _isDarkMode = settings.DarkMode;
@@ -55,6 +65,7 @@ public sealed class SettingsViewModel : ObservableObject
         _webSearchResults = settings.WebSearchResults;
         _webSearchQueriesMin = settings.WebSearchQueriesMin;
         _webSearchQueriesMax = settings.WebSearchQueriesMax;
+        _autoStartEnabled = settings.AutoStartEnabled;
         _statusMessage = string.IsNullOrWhiteSpace(_apiKey) ? "Enter an API key to load models." : string.Empty;
         Models.CollectionChanged += (_, _) =>
         {
@@ -71,6 +82,12 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     public ObservableCollection<string> Models { get; } = new();
+
+    public ObservableCollection<string> TranscriptionModels { get; } = new()
+    {
+        "azure-fast-transcription",
+        "azure-whisper"
+    };
 
     public string ApiKey
     {
@@ -111,6 +128,12 @@ public sealed class SettingsViewModel : ObservableObject
     {
         get => _temporaryModel;
         set => SetProperty(ref _temporaryModel, value);
+    }
+
+    public string TranscriptionModel
+    {
+        get => _transcriptionModel;
+        set => SetProperty(ref _transcriptionModel, value);
     }
 
     public string Hotkey
@@ -165,6 +188,12 @@ public sealed class SettingsViewModel : ObservableObject
     {
         get => _isDarkMode;
         set => SetProperty(ref _isDarkMode, value);
+    }
+
+    public bool AutoStartEnabled
+    {
+        get => _autoStartEnabled;
+        set => SetProperty(ref _autoStartEnabled, value);
     }
 
     public bool IsBusy
@@ -407,7 +436,9 @@ public sealed class SettingsViewModel : ObservableObject
             WebSearchCountry = WebSearchCountry?.Trim() ?? string.Empty,
             WebSearchResults = WebSearchResults,
             WebSearchQueriesMin = WebSearchQueriesMin,
-            WebSearchQueriesMax = WebSearchQueriesMax
+            WebSearchQueriesMax = WebSearchQueriesMax,
+            TranscriptionModel = TranscriptionModel?.Trim() ?? string.Empty,
+            AutoStartEnabled = AutoStartEnabled
         };
     }
 

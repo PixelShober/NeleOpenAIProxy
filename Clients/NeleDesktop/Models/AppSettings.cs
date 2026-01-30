@@ -15,6 +15,8 @@ public sealed class AppSettings
     public int WebSearchResults { get; set; } = 5;
     public int WebSearchQueriesMin { get; set; } = 1;
     public int WebSearchQueriesMax { get; set; } = 1;
+    public string TranscriptionModel { get; set; } = "azure-fast-transcription";
+    public bool AutoStartEnabled { get; set; }
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
     public double? WindowWidth { get; set; }

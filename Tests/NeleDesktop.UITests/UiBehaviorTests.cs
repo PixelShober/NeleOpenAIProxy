@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +9,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using NeleDesktop;
+using NeleDesktop.Models;
 using NeleDesktop.ViewModels;
 
 namespace NeleDesktop.UITests;
@@ -106,6 +109,95 @@ public sealed class UiBehaviorTests
             Assert.IsNotNull(chatRoot, "Chat template root was not created.");
             var chatText = UiTestHelpers.FindVisualChild<TextBlock>(chatRoot, tb => tb.TextTrimming == TextTrimming.CharacterEllipsis);
             Assert.IsNotNull(chatText, "Chat title text trimming is missing.");
+        });
+    }
+
+    [TestMethod]
+    public void SettingsWindow_HasAutoStartToggle()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.ApplyTemplate();
+
+            var toggle = window.FindName("AutoStartToggle") as ToggleButton;
+            Assert.IsNotNull(toggle, "AutoStart toggle was not found.");
+        });
+    }
+
+    [TestMethod]
+    public void BubbleWidthConverter_RespectsRole()
+    {
+        var converter = new NeleDesktop.Converters.BubbleWidthConverter();
+        var assistant = (double)converter.Convert(new object[] { 600d, "assistant" }, typeof(double), string.Empty, System.Globalization.CultureInfo.InvariantCulture);
+        var user = (double)converter.Convert(new object[] { 600d, "user" }, typeof(double), string.Empty, System.Globalization.CultureInfo.InvariantCulture);
+        var assistantMin = (double)converter.Convert(new object[] { 600d, "assistant" }, typeof(double), "min", System.Globalization.CultureInfo.InvariantCulture);
+        var userMin = (double)converter.Convert(new object[] { 600d, "user" }, typeof(double), "min", System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.IsTrue(assistant > 500, $"Assistant width should be near full width, got {assistant:F1}.");
+        Assert.IsTrue(user > 500, $"User max width should allow full line, got {user:F1}.");
+        Assert.AreEqual(0d, userMin, "User min width should be zero for compact bubbles.");
+        Assert.IsTrue(assistantMin > 0, "Assistant min width should be positive.");
+    }
+
+    [TestMethod]
+    public void ChatBubbles_ResizeWithWindow()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            var viewModel = new MainViewModel();
+            var conversation = new ChatConversation
+            {
+                Messages = new ObservableCollection<ChatMessage>
+                {
+                    new() { Role = "user", Content = "Test" },
+                    new() { Role = "assistant", Content = string.Join(' ', Enumerable.Repeat("Long assistant response", 6)) }
+                }
+            };
+            viewModel.SelectedChat = new ChatConversationViewModel(conversation);
+            window.DataContext = viewModel;
+            window.Width = 800;
+            window.Height = 600;
+            UiTestHelpers.DoEvents();
+            window.ApplyTemplate();
+            window.Measure(new Size(window.Width, window.Height));
+            window.Arrange(new Rect(0, 0, window.Width, window.Height));
+            window.UpdateLayout();
+
+            var root = window.Content as FrameworkElement;
+            Assert.IsNotNull(root, "Main window content was not created.");
+            root.Measure(new Size(window.Width, window.Height));
+            root.Arrange(new Rect(0, 0, window.Width, window.Height));
+            root.UpdateLayout();
+
+            var bubbles = FindMessageBubbles(root);
+            var userBubble = bubbles.First(b => (b.DataContext as ChatMessage)?.Role == "user");
+            var assistantBubble = bubbles.First(b => (b.DataContext as ChatMessage)?.Role == "assistant");
+            var chatWidthLarge = ((FrameworkElement)window.FindName("ChatScrollViewer")).ActualWidth;
+            var userWidthLarge = userBubble.ActualWidth;
+            var assistantWidthLarge = assistantBubble.ActualWidth;
+
+            Assert.IsTrue(userWidthLarge < assistantWidthLarge, "User bubble should be narrower than assistant bubble.");
+            Assert.IsTrue(userWidthLarge < chatWidthLarge * 0.75, "User bubble should not span the full chat width.");
+
+            window.Width = 480;
+            UiTestHelpers.DoEvents();
+            window.Measure(new Size(window.Width, window.Height));
+            window.Arrange(new Rect(0, 0, window.Width, window.Height));
+            window.UpdateLayout();
+
+            var chatWidthSmall = ((FrameworkElement)window.FindName("ChatScrollViewer")).ActualWidth;
+            var userWidthSmall = userBubble.ActualWidth;
+            var assistantWidthSmall = assistantBubble.ActualWidth;
+
+            Assert.IsTrue(assistantWidthSmall <= assistantWidthLarge, "Assistant bubble should not grow when window narrows.");
+            Assert.IsTrue(assistantWidthSmall <= chatWidthSmall + 1, "Assistant bubble should fit the smaller chat width.");
+            Assert.IsTrue(assistantWidthSmall > userWidthSmall, "Assistant bubble should remain wider than user bubble.");
+
         });
     }
 
@@ -376,6 +468,40 @@ public sealed class UiBehaviorTests
     }
 
     [TestMethod]
+    public void SettingsWindow_WebSearchDefaultToggleExists()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.ApplyTemplate();
+            window.UpdateLayout();
+
+            var toggle = window.FindName("WebSearchDefaultToggle") as ToggleButton;
+            Assert.IsNotNull(toggle, "Web search default toggle not found.");
+            var binding = BindingOperations.GetBindingExpression(toggle, ToggleButton.IsCheckedProperty);
+            Assert.IsNotNull(binding, "Web search default toggle is not data-bound.");
+        });
+    }
+
+    [TestMethod]
+    public void SettingsWindow_TranscriptionModelDropdownExists()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var viewModel = new SettingsViewModel(new NeleDesktop.Services.NeleApiClient(), new NeleDesktop.Models.AppSettings());
+            var window = new NeleDesktop.Views.SettingsWindow(viewModel);
+            window.ApplyTemplate();
+            window.UpdateLayout();
+
+            var comboBox = window.FindName("TranscriptionModelCombo") as ComboBox;
+            Assert.IsNotNull(comboBox, "Transcription model ComboBox not found.");
+        });
+    }
+
+    [TestMethod]
     public void SettingsWindow_HotkeyFieldsAreReadOnly()
     {
         UiTestHelpers.RunOnSta(() =>
@@ -484,7 +610,7 @@ public sealed class UiBehaviorTests
     }
 
     [TestMethod]
-    public void ChatHeader_WebSearchToggleExists()
+    public void ChatHeader_WebSearchMenuExists()
     {
         UiTestHelpers.RunOnSta(() =>
         {
@@ -498,10 +624,193 @@ public sealed class UiBehaviorTests
                 root.UpdateLayout();
             }
 
-            var toggle = window.FindName("WebSearchToggle") as ToggleButton;
-            Assert.IsNotNull(toggle, "Web search toggle not found.");
-            var binding = BindingOperations.GetBindingExpression(toggle, ToggleButton.IsCheckedProperty);
-            Assert.IsNotNull(binding, "Web search toggle is not data-bound.");
+            var toolsButton = window.FindName("ToolsButton") as Button;
+            Assert.IsNotNull(toolsButton, "Tools button not found.");
+            Assert.IsNotNull(toolsButton.ContextMenu, "Tools context menu not found.");
+
+            var menuItem = toolsButton.ContextMenu.Items.OfType<MenuItem>()
+                .FirstOrDefault(item => string.Equals(item.Header as string, "Web search", StringComparison.OrdinalIgnoreCase));
+            Assert.IsNotNull(menuItem, "Web search menu item not found.");
+            Assert.IsTrue(menuItem.IsCheckable, "Web search menu item should be checkable.");
+            var binding = BindingOperations.GetBindingExpression(menuItem, MenuItem.IsCheckedProperty);
+            Assert.IsNotNull(binding, "Web search menu item is not data-bound.");
+        });
+    }
+
+    [TestMethod]
+    public void ChatInput_PendingAttachmentsPanelBinds()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var pendingPanel = window.FindName("PendingAttachmentsPanel") as ItemsControl;
+            Assert.IsNotNull(pendingPanel, "Pending attachments panel not found.");
+
+            var binding = BindingOperations.GetBindingExpression(pendingPanel, ItemsControl.ItemsSourceProperty);
+            Assert.IsNotNull(binding, "Pending attachments ItemsSource is not data-bound.");
+            Assert.AreEqual("PendingAttachments", binding.ParentBinding?.Path?.Path);
+
+            var panel = pendingPanel.ItemsPanel.LoadContent() as Panel;
+            Assert.IsInstanceOfType(panel, typeof(WrapPanel), "Pending attachments panel should use a WrapPanel.");
+        });
+    }
+
+    [TestMethod]
+    public void ChatInput_MicrophoneButtonExists()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var micButton = window.FindName("MicButton") as Button;
+            Assert.IsNotNull(micButton, "Mic button not found.");
+            Assert.IsNotNull(micButton.Command, "Mic button should be command-bound.");
+        });
+    }
+
+    [TestMethod]
+    public void ChatMessage_AttachmentChipsArePresentInTemplate()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var scrollViewer = window.FindName("ChatScrollViewer") as ScrollViewer;
+            Assert.IsNotNull(scrollViewer, "ChatScrollViewer not found.");
+
+            ItemsControl? messageItems = null;
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(scrollViewer);
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                var childCount = VisualTreeHelper.GetChildrenCount(current);
+                for (var i = 0; i < childCount; i++)
+                {
+                    var child = VisualTreeHelper.GetChild(current, i);
+                    if (child is ItemsControl items)
+                    {
+                        var binding = BindingOperations.GetBindingExpression(items, ItemsControl.ItemsSourceProperty);
+                        if (string.Equals(binding?.ParentBinding?.Path?.Path, "ActiveMessages", StringComparison.Ordinal))
+                        {
+                            messageItems = items;
+                            break;
+                        }
+                    }
+
+                    queue.Enqueue(child);
+                }
+
+                if (messageItems is not null)
+                {
+                    break;
+                }
+            }
+
+            Assert.IsNotNull(messageItems, "Message ItemsControl not found.");
+            Assert.IsNotNull(messageItems.ItemTemplate, "Message ItemTemplate missing.");
+
+            var templateRoot = messageItems.ItemTemplate.LoadContent() as FrameworkElement;
+            Assert.IsNotNull(templateRoot, "Message template could not be loaded.");
+
+            var attachmentList = UiTestHelpers.FindVisualChild<ItemsControl>(templateRoot, control =>
+            {
+                var binding = BindingOperations.GetBindingExpression(control, ItemsControl.ItemsSourceProperty);
+                return string.Equals(binding?.ParentBinding?.Path?.Path, "Attachments", StringComparison.Ordinal);
+            });
+
+            Assert.IsNotNull(attachmentList, "Attachment list ItemsControl missing in message template.");
+            Assert.IsNotNull(attachmentList.ItemTemplate, "Attachment chip template not applied.");
+        });
+    }
+
+    [TestMethod]
+    public void ChatDragOverlay_IsConfiguredForFileDrop()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var overlay = window.FindName("ChatDragOverlay") as Border;
+            Assert.IsNotNull(overlay, "Chat drag overlay not found.");
+            Assert.IsFalse(overlay.IsHitTestVisible, "Chat drag overlay should not intercept input.");
+            Assert.IsTrue(overlay.Opacity <= 0.01, "Chat drag overlay should start hidden.");
+        });
+    }
+
+    [TestMethod]
+    public void MainWindow_MaximizedBoundsStayWithinWorkArea()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow
+            {
+                Left = 0,
+                Top = 0
+            };
+            window.Show();
+            UiTestHelpers.DoEvents();
+            window.WindowState = WindowState.Maximized;
+            UiTestHelpers.DoEvents();
+            var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            var screen = System.Windows.Forms.Screen.FromHandle(handle);
+            var workArea = screen.WorkingArea;
+            var source = PresentationSource.FromVisual(window);
+            var transform = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+            var origin = transform.Transform(new Point(workArea.Left, workArea.Top));
+            var size = transform.Transform(new Point(workArea.Width, workArea.Height));
+            Assert.IsFalse(double.IsPositiveInfinity(window.MaxHeight), "MaxHeight should be constrained when maximized.");
+            Assert.IsFalse(double.IsPositiveInfinity(window.MaxWidth), "MaxWidth should be constrained when maximized.");
+            Assert.IsTrue(window.MaxHeight <= size.Y + 1,
+                $"MaxHeight {window.MaxHeight:F1} exceeds work area height {size.Y:F1}.");
+            Assert.IsTrue(window.MaxWidth <= size.X + 1,
+                $"MaxWidth {window.MaxWidth:F1} exceeds work area width {size.X:F1}.");
+            const double positionTolerance = 12;
+            Assert.IsTrue(window.Top >= origin.Y - positionTolerance
+                          && window.Top <= origin.Y + size.Y + positionTolerance,
+                $"Window Top {window.Top:F1} should stay within work area bounds ({origin.Y:F1}..{origin.Y + size.Y:F1}).");
+            Assert.IsTrue(window.Left >= origin.X - positionTolerance
+                          && window.Left <= origin.X + size.X + positionTolerance,
+                $"Window Left {window.Left:F1} should stay within work area bounds ({origin.X:F1}..{origin.X + size.X:F1}).");
+            window.Close();
         });
     }
 
@@ -513,4 +822,30 @@ public sealed class UiBehaviorTests
         Assert.IsTrue(ratio >= minRatio,
             $"Contrast ratio for {textKey} on {backgroundKey} is {ratio:F2}, expected >= {minRatio:F1}.");
     }
+
+    private static List<Border> FindMessageBubbles(DependencyObject root)
+    {
+        var results = new List<Border>();
+        var queue = new Queue<DependencyObject>();
+        queue.Enqueue(root);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            var childCount = VisualTreeHelper.GetChildrenCount(current);
+            for (var i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(current, i);
+                if (child is Border border && Equals(border.Tag, "MessageBubble"))
+                {
+                    results.Add(border);
+                }
+
+                queue.Enqueue(child);
+            }
+        }
+
+        return results;
+    }
 }
+
