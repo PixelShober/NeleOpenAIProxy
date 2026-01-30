@@ -109,7 +109,7 @@ app.MapGet("/v1/models/{id}", async (HttpContext context, string id, IHttpClient
     await WriteOpenAiError(context, StatusCodes.Status404NotFound, "Model not found.", "invalid_request_error", "model_not_found");
 });
 
-app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config) =>
+app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
 {
     JsonDocument requestDoc;
     try
@@ -130,13 +130,30 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
         var isStream = streamRequested || forceStream;
         var defaultModel = GetDefaultChatModel(config);
         var model = ResolveChatModel(root, defaultModel);
-        var nelePayload = await BuildChatCompletionPayloadAsync(root, model, context, httpClientFactory, config);
+        var (messageCount, imagePartCount, toolCount, hasWebSearch, hasDocumentCollection) = GetMessageStatistics(root);
+        logger.LogInformation(
+            "Chat completion request received. Model={Model} StreamRequested={StreamRequested} ForceStream={ForceStream} Messages={MessageCount} ImageParts={ImagePartCount} Tools={ToolCount} WebSearch={HasWebSearch} DocumentCollection={HasDocumentCollection}",
+            model,
+            streamRequested,
+            forceStream,
+            messageCount,
+            imagePartCount,
+            toolCount,
+            hasWebSearch,
+            hasDocumentCollection);
+
+        var nelePayload = await BuildChatCompletionPayloadAsync(root, model, context, httpClientFactory, config, logger);
         if (nelePayload is null)
         {
             return;
         }
 
         var json = nelePayload.ToJsonString();
+        if (nelePayload.TryGetPropertyValue("modelConfiguration", out var modelConfiguration) && modelConfiguration is JsonObject modelConfig
+            && modelConfig.TryGetPropertyValue("reasoning_effort", out var reasoningEffort))
+        {
+            logger.LogInformation("Using reasoning_effort={ReasoningEffort}", reasoningEffort?.ToString());
+        }
 
         if (isStream)
         {
@@ -158,6 +175,7 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
 
             if (!upstreamResp.IsSuccessStatusCode)
             {
+                logger.LogWarning("Upstream chat completion failed. Status={StatusCode} Reason={ReasonPhrase}", (int)upstreamResp.StatusCode, upstreamResp.ReasonPhrase);
                 // Optional: wenn upstream leer ist, gib wenigstens OpenAI-Error zurück (hilft bei "no body")
                 if (string.IsNullOrWhiteSpace(upstreamBody))
                     await WriteOpenAiError(context, (int)upstreamResp.StatusCode,
@@ -200,6 +218,7 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
         var body = await response.Content.ReadAsStringAsync(context.RequestAborted);
         if (!response.IsSuccessStatusCode)
         {
+            logger.LogWarning("Upstream chat completion failed. Status={StatusCode} Reason={ReasonPhrase}", (int)response.StatusCode, response.ReasonPhrase);
             context.Response.StatusCode = (int)response.StatusCode;
             context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json";
             await context.Response.WriteAsync(body, context.RequestAborted);
@@ -600,7 +619,7 @@ static bool TryFindModel(JsonElement root, string id, out JsonObject model)
     return false;
 }
 
-static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root, string model, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
+static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root, string model, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger logger)
 {
     var payload = new JsonObject();
 
@@ -620,7 +639,7 @@ static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root,
 
     if (root.TryGetProperty("messages", out var messagesValue))
     {
-        var messages = await NormalizeMessagesAsync(messagesValue, context, httpClientFactory, config);
+        var messages = await NormalizeMessagesAsync(messagesValue, context, httpClientFactory, config, logger);
         if (messages is null)
         {
             return null;
@@ -632,7 +651,7 @@ static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root,
     return payload;
 }
 
-static async Task<JsonArray?> NormalizeMessagesAsync(JsonElement messagesValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
+static async Task<JsonArray?> NormalizeMessagesAsync(JsonElement messagesValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger logger)
 {
     var messages = new JsonArray();
     if (messagesValue.ValueKind != JsonValueKind.Array)
@@ -642,7 +661,7 @@ static async Task<JsonArray?> NormalizeMessagesAsync(JsonElement messagesValue, 
 
     foreach (var message in messagesValue.EnumerateArray())
     {
-        var (success, normalized) = await TryNormalizeMessageAsync(message, context, httpClientFactory, config);
+        var (success, normalized) = await TryNormalizeMessageAsync(message, context, httpClientFactory, config, logger);
         if (!success)
         {
             return null;
@@ -657,7 +676,7 @@ static async Task<JsonArray?> NormalizeMessagesAsync(JsonElement messagesValue, 
     return messages;
 }
 
-static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsync(JsonElement message, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
+static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsync(JsonElement message, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger logger)
 {
     if (message.ValueKind != JsonValueKind.Object)
     {
@@ -669,6 +688,7 @@ static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsy
     CopyProperty(message, normalized, "name");
 
     var attachments = new JsonArray();
+    var role = GetStringProperty(message, "role");
     if (message.TryGetProperty("attachments", out var attachmentsValue) && attachmentsValue.ValueKind == JsonValueKind.Array)
     {
         foreach (var attachment in attachmentsValue.EnumerateArray())
@@ -719,7 +739,7 @@ static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsy
                         continue;
                     }
 
-                    var attachment = await TryUploadImageAttachmentAsync(url, imageValue, context, httpClientFactory, config);
+                    var attachment = await TryUploadImageAttachmentAsync(url, imageValue, context, httpClientFactory, config, logger);
                     if (attachment is null)
                     {
                         return (false, null);
@@ -740,6 +760,7 @@ static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsy
     if (attachments.Count > 0)
     {
         normalized["attachments"] = attachments;
+        logger.LogInformation("Added attachments to message. Role={Role} Attachments={AttachmentCount}", role, attachments.Count);
     }
 
     CopyProperty(message, normalized, "results");
@@ -783,7 +804,7 @@ static string ExtractTextContent(JsonElement contentValue)
     return builder.ToString();
 }
 
-static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonElement imageValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config)
+static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonElement imageValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger logger)
 {
     if (!TryGetImageDetail(imageValue, out var detail))
     {
@@ -793,9 +814,12 @@ static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonEle
     var imageContent = await TryGetImageContentAsync(url, context.RequestAborted);
     if (!imageContent.Success)
     {
+        logger.LogWarning("Image attachment download failed. Reason={Reason}", imageContent.ErrorMessage);
         await WriteOpenAiError(context, StatusCodes.Status400BadRequest, imageContent.ErrorMessage, "invalid_request_error", "invalid_image_url");
         return null;
     }
+
+    logger.LogInformation("Uploading image attachment. ContentType={ContentType} Bytes={ByteLength}", imageContent.ContentType, imageContent.Data.Length);
 
     using var multipart = new MultipartFormDataContent();
     var fileContent = new ByteArrayContent(imageContent.Data);
@@ -822,6 +846,7 @@ static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonEle
     var payload = await response.Content.ReadAsStringAsync(context.RequestAborted);
     if (!response.IsSuccessStatusCode)
     {
+        logger.LogWarning("Image attachment upload failed. Status={StatusCode} Reason={ReasonPhrase}", (int)response.StatusCode, response.ReasonPhrase);
         context.Response.StatusCode = (int)response.StatusCode;
         context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json";
         await context.Response.WriteAsync(payload, context.RequestAborted);
@@ -831,6 +856,7 @@ static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonEle
     using var doc = JsonDocument.Parse(payload);
     if (!doc.RootElement.TryGetProperty("path", out var pathValue))
     {
+        logger.LogWarning("Image attachment upload succeeded but no path was returned by upstream.");
         await WriteOpenAiError(context, StatusCodes.Status502BadGateway, "Upstream did not return image path.", "upstream_error", "image_attachment_missing_path");
         return null;
     }
@@ -838,6 +864,7 @@ static async Task<JsonObject?> TryUploadImageAttachmentAsync(string url, JsonEle
     var path = pathValue.GetString();
     if (string.IsNullOrWhiteSpace(path))
     {
+        logger.LogWarning("Image attachment upload returned an empty path.");
         await WriteOpenAiError(context, StatusCodes.Status502BadGateway, "Upstream returned empty image path.", "upstream_error", "image_attachment_empty_path");
         return null;
     }
@@ -1015,7 +1042,7 @@ static string GetDefaultChatModel(IConfiguration config)
 static string GetDefaultReasoningEffort(IConfiguration config)
 {
     var effort = config["Nele:ModelConfiguration:ReasoningEffort"];
-    return string.IsNullOrWhiteSpace(effort) ? "high" : effort.Trim();
+    return string.IsNullOrWhiteSpace(effort) ? string.Empty : effort.Trim();
 }
 
 static bool IsStreamingForced(IConfiguration config)
@@ -1068,6 +1095,51 @@ static string ResolveChatModel(JsonElement root, string defaultModel)
 {
     var model = GetStringProperty(root, "model");
     return string.IsNullOrWhiteSpace(model) ? defaultModel : model;
+}
+
+static (int MessageCount, int ImagePartCount, int ToolCount, bool HasWebSearch, bool HasDocumentCollection) GetMessageStatistics(JsonElement root)
+{
+    var messageCount = 0;
+    var imagePartCount = 0;
+    var toolCount = 0;
+
+    if (root.TryGetProperty("messages", out var messagesValue) && messagesValue.ValueKind == JsonValueKind.Array)
+    {
+        messageCount = messagesValue.GetArrayLength();
+        foreach (var message in messagesValue.EnumerateArray())
+        {
+            if (!message.TryGetProperty("content", out var contentValue) || contentValue.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var part in contentValue.EnumerateArray())
+            {
+                if (part.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var partType = GetStringProperty(part, "type");
+                if (string.Equals(partType, "image_url", StringComparison.OrdinalIgnoreCase))
+                {
+                    imagePartCount++;
+                }
+            }
+        }
+    }
+
+    if (root.TryGetProperty("tools", out var toolsValue) && toolsValue.ValueKind == JsonValueKind.Array)
+    {
+        toolCount = toolsValue.GetArrayLength();
+    }
+
+    var hasWebSearch = root.TryGetProperty("web_search", out var webSearchValue) && webSearchValue.ValueKind != JsonValueKind.Null;
+    var hasDocumentCollection = root.TryGetProperty("documentCollectionId", out var documentCollectionValue)
+        && documentCollectionValue.ValueKind != JsonValueKind.Null
+        && !string.IsNullOrWhiteSpace(documentCollectionValue.ToString());
+
+    return (messageCount, imagePartCount, toolCount, hasWebSearch, hasDocumentCollection);
 }
 
 static bool TryBuildResponsesMessages(JsonElement root, out JsonArray messages, out string errorMessage)
