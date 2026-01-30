@@ -109,6 +109,60 @@ app.MapGet("/v1/models/{id}", async (HttpContext context, string id, IHttpClient
     await WriteOpenAiError(context, StatusCodes.Status404NotFound, "Model not found.", "invalid_request_error", "model_not_found");
 });
 
+var knowledge = app.MapGroup("/v1/knowledge");
+knowledge.MapGet("/models", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Get, "models", logger);
+});
+knowledge.MapGet("/collections", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Get, "document-collections", logger);
+});
+knowledge.MapPost("/collections", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Post, "document-collections", logger);
+});
+knowledge.MapGet("/collections/{collection}", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Get, $"document-collections/{collection}", logger);
+});
+knowledge.MapPut("/collections/{collection}", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Put, $"document-collections/{collection}", logger);
+});
+knowledge.MapDelete("/collections/{collection}", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Delete, $"document-collections/{collection}", logger);
+});
+knowledge.MapPost("/collections/{collection}/items", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Post, $"document-collections/{collection}/items", logger);
+});
+knowledge.MapPost("/collections/{collection}/from-url", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Post, $"document-collections/{collection}/from-url", logger);
+});
+knowledge.MapPut("/collections/{collection}/embed", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Put, $"document-collections/{collection}/embed", logger);
+});
+knowledge.MapPost("/collections/{collection}/search", async (HttpContext context, string collection, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Post, $"document-collections/{collection}/search", logger);
+});
+knowledge.MapGet("/items/{item}", async (HttpContext context, string item, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Get, $"document-collection-items/{item}", logger);
+});
+knowledge.MapDelete("/items/{item}", async (HttpContext context, string item, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Delete, $"document-collection-items/{item}", logger);
+});
+knowledge.MapPut("/items/{item}/embed", async (HttpContext context, string item, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
+{
+    await ProxyRequestAsync(context, httpClientFactory, config, HttpMethod.Put, $"document-collection-items/{item}/embed", logger);
+});
+
 app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<Program> logger) =>
 {
     JsonDocument requestDoc;
@@ -550,6 +604,57 @@ static async Task WriteOpenAiError(HttpContext context, int statusCode, string m
         }
     };
     await context.Response.WriteAsync(payload.ToJsonString(), context.RequestAborted);
+}
+
+static async Task ProxyRequestAsync(HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, HttpMethod method, string upstreamPath, ILogger logger)
+{
+    var upstreamPathWithQuery = upstreamPath + context.Request.QueryString.Value;
+    using var requestMessage = new HttpRequestMessage(method, upstreamPathWithQuery);
+
+    if (method != HttpMethod.Get && method != HttpMethod.Head && method != HttpMethod.Delete)
+    {
+        if (context.Request.Body.CanRead)
+        {
+            var content = new StreamContent(context.Request.Body);
+            if (!string.IsNullOrWhiteSpace(context.Request.ContentType))
+            {
+                content.Headers.ContentType = MediaTypeHeaderValue.Parse(context.Request.ContentType);
+            }
+
+            requestMessage.Content = content;
+        }
+    }
+
+    if (!TryApplyAuthorization(requestMessage, context.Request, config))
+    {
+        await WriteMissingAuth(context);
+        return;
+    }
+
+    if (context.Request.Headers.TryGetValue("Accept-Language", out var language))
+    {
+        requestMessage.Headers.TryAddWithoutValidation("Accept-Language", language.ToString());
+    }
+
+    var client = httpClientFactory.CreateClient("Nele");
+    using var response = await client.SendAsync(requestMessage, HttpCompletionOption.ResponseContentRead, context.RequestAborted);
+    var payload = await response.Content.ReadAsByteArrayAsync(context.RequestAborted);
+
+    context.Response.StatusCode = (int)response.StatusCode;
+    if (response.Content.Headers.ContentType is not null)
+    {
+        context.Response.ContentType = response.Content.Headers.ContentType.ToString();
+    }
+
+    if (!response.IsSuccessStatusCode)
+    {
+        logger.LogWarning("Knowledge proxy call failed. Path={Path} Status={StatusCode} Reason={ReasonPhrase}", upstreamPathWithQuery, (int)response.StatusCode, response.ReasonPhrase);
+    }
+
+    if (payload.Length > 0)
+    {
+        await context.Response.Body.WriteAsync(payload, context.RequestAborted);
+    }
 }
 
 static void AddModels(JsonElement root, string propertyName, JsonArray data, long created)

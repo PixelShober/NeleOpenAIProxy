@@ -13,6 +13,20 @@ Minimaler C#-Proxy, der OpenAI-kompatible Endpunkte auf die Nele.AI API ueberset
   - `POST /v1/responses` (sync)
   - `POST /v1/audio/transcriptions`
   - `POST /v1/images/generations`
+- Knowledge (Nele-Payload 1:1, fuer Agents/n8n):
+  - `GET /v1/knowledge/models`
+  - `GET /v1/knowledge/collections`
+  - `POST /v1/knowledge/collections`
+  - `GET /v1/knowledge/collections/{id}`
+  - `PUT /v1/knowledge/collections/{id}`
+  - `DELETE /v1/knowledge/collections/{id}`
+  - `POST /v1/knowledge/collections/{id}/items`
+  - `POST /v1/knowledge/collections/{id}/from-url`
+  - `PUT /v1/knowledge/collections/{id}/embed`
+  - `POST /v1/knowledge/collections/{id}/search`
+  - `GET /v1/knowledge/items/{item}`
+  - `DELETE /v1/knowledge/items/{item}`
+  - `PUT /v1/knowledge/items/{item}/embed`
 - Optionaler Default fuer Chat-Modelle via Config
 - Konfiguration wird immer aus dem Ordner der EXE gelesen
 
