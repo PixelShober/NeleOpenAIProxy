@@ -688,6 +688,27 @@ public sealed class UiBehaviorTests
     }
 
     [TestMethod]
+    public void ChatInput_RecordingWaveformExists()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            var waveform = window.FindName("RecordingWaveform") as Border;
+            Assert.IsNotNull(waveform, "Recording waveform container not found.");
+        });
+    }
+
+    [TestMethod]
     public void ChatMessage_AttachmentChipsArePresentInTemplate()
     {
         UiTestHelpers.RunOnSta(() =>

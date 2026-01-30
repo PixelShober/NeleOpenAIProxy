@@ -35,8 +35,9 @@
                             BorderThickness="1"
                             Margin="0,0,8,0">
                         <Grid>
-                            <Image Source="{Binding SourcePath}"
+                            <Image Source="{Binding SourcePath, Converter={StaticResource ThumbnailImageConverter}}"
                                    Stretch="UniformToFill"
+                                   RenderOptions.BitmapScalingMode="Fant"
                                    Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <TextBlock FontFamily="Segoe MDL2 Assets"
                                        Text="&#xE8A5;"
@@ -92,8 +93,9 @@
                                 BorderThickness="1"
                                 Margin="0,0,8,0">
                             <Grid>
-                                <Image Source="{Binding SourcePath}"
+                                <Image Source="{Binding SourcePath, Converter={StaticResource ThumbnailImageConverter}}"
                                        Stretch="UniformToFill"
+                                       RenderOptions.BitmapScalingMode="Fant"
                                        Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 <TextBlock FontFamily="Segoe MDL2 Assets"
                                            Text="&#xE8A5;"
@@ -696,28 +698,131 @@
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>
-                            <TextBox x:Name="InputBox"
-                                     Grid.Column="1"
-                                     Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
-                                     AcceptsReturn="True"
-                                     MinHeight="56"
-                                     VerticalScrollBarVisibility="Auto"
-                                     TextWrapping="Wrap"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     Margin="8,0,0,0"
-                                     PreviewKeyDown="InputBox_KeyDown" />
+                            <Grid Grid.Column="1" Margin="8,0,0,0">
+                                <TextBox x:Name="InputBox"
+                                         Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True"
+                                         MinHeight="56"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextWrapping="Wrap"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         PreviewKeyDown="InputBox_KeyDown">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                                <Border x:Name="RecordingWaveform"
+                                        Background="Transparent"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsRecording, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                                        <Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource AccentBrush}" Margin="0,0,4,0">
+                                            <Rectangle.RenderTransform>
+                                                <ScaleTransform ScaleY="0.4" />
+                                            </Rectangle.RenderTransform>
+                                            <Rectangle.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                             From="0.4"
+                                                                             To="1.2"
+                                                                             Duration="0:0:0.25" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Rectangle.Triggers>
+                                        </Rectangle>
+                                        <Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource AccentBrush}" Margin="0,0,4,0">
+                                            <Rectangle.RenderTransform>
+                                                <ScaleTransform ScaleY="0.6" />
+                                            </Rectangle.RenderTransform>
+                                            <Rectangle.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True" BeginTime="0:0:0.1">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                             From="0.5"
+                                                                             To="1.4"
+                                                                             Duration="0:0:0.3" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Rectangle.Triggers>
+                                        </Rectangle>
+                                        <Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource AccentBrush}" Margin="0,0,4,0">
+                                            <Rectangle.RenderTransform>
+                                                <ScaleTransform ScaleY="0.5" />
+                                            </Rectangle.RenderTransform>
+                                            <Rectangle.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True" BeginTime="0:0:0.2">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                             From="0.3"
+                                                                             To="1.3"
+                                                                             Duration="0:0:0.25" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Rectangle.Triggers>
+                                        </Rectangle>
+                                        <Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource AccentBrush}" Margin="0,0,4,0">
+                                            <Rectangle.RenderTransform>
+                                                <ScaleTransform ScaleY="0.7" />
+                                            </Rectangle.RenderTransform>
+                                            <Rectangle.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True" BeginTime="0:0:0.15">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                             From="0.4"
+                                                                             To="1.5"
+                                                                             Duration="0:0:0.28" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Rectangle.Triggers>
+                                        </Rectangle>
+                                        <Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource AccentBrush}">
+                                            <Rectangle.RenderTransform>
+                                                <ScaleTransform ScaleY="0.5" />
+                                            </Rectangle.RenderTransform>
+                                            <Rectangle.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True" BeginTime="0:0:0.05">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                             From="0.4"
+                                                                             To="1.2"
+                                                                             Duration="0:0:0.22" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Rectangle.Triggers>
+                                        </Rectangle>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
                             <Button x:Name="MicButton"
                                     Grid.Column="2"
                                     Margin="10,0,2,0"
                                     Command="{Binding ToggleRecordingCommand}"
                                     IsEnabled="{Binding IsApiKeyAvailable}">
                                 <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                    <Style TargetType="Button" BasedOn="{StaticResource MicButtonStyle}">
                                         <Setter Property="ToolTip" Value="Voice input" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource AttentionBrush}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AttentionBrush}" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsTranscribing}" Value="True">
                                                 <Setter Property="IsEnabled" Value="False" />

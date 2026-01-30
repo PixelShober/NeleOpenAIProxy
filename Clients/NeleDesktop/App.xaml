@@ -12,6 +12,7 @@
             <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocumentConverter" />
             <converters:BubbleWidthConverter x:Key="BubbleWidthConverter" />
             <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
+            <converters:ThumbnailImageConverter x:Key="ThumbnailImageConverter" />
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>

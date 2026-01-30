@@ -444,6 +444,10 @@
         </Setter>
     </Style>
 
+    <Style x:Key="MicButtonStyle" TargetType="Button" BasedOn="{StaticResource SendButtonStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    </Style>
+
     <Style x:Key="PlusMenuButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="30" />
         <Setter Property="Height" Value="30" />

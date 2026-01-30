@@ -24,7 +24,7 @@ public sealed class ChatAttachment
     public bool IsImage => string.Equals(Type, "image", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
-    public bool HasPreview => IsImage && !string.IsNullOrWhiteSpace(SourcePath);
+    public bool HasPreview => IsImage && !string.IsNullOrWhiteSpace(SourcePath) && System.IO.File.Exists(SourcePath);
 
     [JsonIgnore]
     public bool IsUploading { get; set; }
