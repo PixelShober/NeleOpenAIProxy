@@ -1338,6 +1338,11 @@ static async Task WriteChatCompletionStream(HttpContext context, JsonObject open
         }
     };
 
+    if (openAiResponse.TryGetPropertyValue("web_search_results", out var webSearchResults) && webSearchResults is not null)
+    {
+        finalChunk["web_search_results"] = webSearchResults.DeepClone();
+    }
+
     await WriteSseEvent(context, finalChunk);
 
     if (includeUsage)
