@@ -55,9 +55,26 @@ public sealed class MainViewModel : ObservableObject
         ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
         ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);
 
-        _pendingAttachments.CollectionChanged += (_, _) =>
+        _pendingAttachments.CollectionChanged += (_, args) =>
         {
+            if (args.NewItems is not null)
+            {
+                foreach (ChatAttachment attachment in args.NewItems)
+                {
+                    attachment.PropertyChanged += PendingAttachment_PropertyChanged;
+                }
+            }
+
+            if (args.OldItems is not null)
+            {
+                foreach (ChatAttachment attachment in args.OldItems)
+                {
+                    attachment.PropertyChanged -= PendingAttachment_PropertyChanged;
+                }
+            }
+
             OnPropertyChanged(nameof(HasPendingAttachments));
+            OnPropertyChanged(nameof(HasUploadingAttachments));
             RaiseSendCanExecuteChanged();
         };
     }
@@ -78,6 +95,8 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<ChatAttachment> PendingAttachments => _pendingAttachments;
 
     public bool HasPendingAttachments => _pendingAttachments.Count > 0;
+
+    public bool HasUploadingAttachments => _pendingAttachments.Any(attachment => attachment.IsUploading);
 
     public bool IsDragOverlayVisible
     {
@@ -561,6 +580,12 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        if (HasUploadingAttachments)
+        {
+            StatusMessage = "Bitte warte, bis alle Uploads abgeschlossen sind.";
+            return;
+        }
+
         InputText = string.Empty;
         IsBusy = true;
 
@@ -595,7 +620,7 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-        var model = string.IsNullOrWhiteSpace(chat.SelectedModel)
+            var model = string.IsNullOrWhiteSpace(chat.SelectedModel)
                 ? ResolveDefaultModel()
                 : chat.SelectedModel;
 
@@ -605,7 +630,8 @@ public sealed class MainViewModel : ObservableObject
                 model,
                 chat.Model.Messages,
                 CancellationToken.None,
-                webSearch: BuildWebSearchOptions(chat));
+                webSearch: BuildWebSearchOptions(chat),
+                reasoningEffort: chat.ReasoningEffort);
 
             chat.Model.Messages.Add(new ChatMessage
             {
@@ -665,7 +691,9 @@ public sealed class MainViewModel : ObservableObject
 
     private bool CanSendMessage()
     {
-        return !IsBusy && (!string.IsNullOrWhiteSpace(InputText) || _pendingAttachments.Count > 0);
+        return !IsBusy
+            && !HasUploadingAttachments
+            && (!string.IsNullOrWhiteSpace(InputText) || _pendingAttachments.Count > 0);
     }
 
     private void RaiseSendCanExecuteChanged()
@@ -823,12 +851,15 @@ public sealed class MainViewModel : ObservableObject
                         continue;
                     }
 
-                    var uploadPath = await _apiClient.UploadImageAttachmentAsync(_settings.ApiKey, _settings.BaseUrl, path, CancellationToken.None);
-                    var attachment = CreateImageAttachment(path, uploadPath);
-                    if (attachment is not null)
+                    var attachment = CreateImageAttachment(path, string.Empty);
+                    if (attachment is null)
                     {
-                        _pendingAttachments.Add(attachment);
+                        continue;
                     }
+
+                    attachment.IsUploading = true;
+                    _pendingAttachments.Add(attachment);
+                    _ = UploadImageAttachmentAsync(attachment, path);
                 }
                 else
                 {
@@ -843,6 +874,29 @@ public sealed class MainViewModel : ObservableObject
             {
                 StatusMessage = $"Failed to attach {Path.GetFileName(path)}: {ex.Message}";
             }
+        }
+    }
+
+    private async Task UploadImageAttachmentAsync(ChatAttachment attachment, string path)
+    {
+        try
+        {
+            var uploadPath = await _apiClient.UploadImageAttachmentAsync(
+                _settings.ApiKey,
+                _settings.BaseUrl,
+                path,
+                CancellationToken.None);
+
+            attachment.Content = uploadPath;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to upload {Path.GetFileName(path)}: {ex.Message}";
+            _pendingAttachments.Remove(attachment);
+        }
+        finally
+        {
+            attachment.IsUploading = false;
         }
     }
 
@@ -1155,6 +1209,15 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private void PendingAttachment_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ChatAttachment.IsUploading))
+        {
+            OnPropertyChanged(nameof(HasUploadingAttachments));
+            RaiseSendCanExecuteChanged();
+        }
+    }
+
     private void Chat_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (sender is not ChatConversationViewModel chat)
@@ -1164,7 +1227,8 @@ public sealed class MainViewModel : ObservableObject
 
         if (e.PropertyName == nameof(ChatConversationViewModel.SelectedModel)
             || e.PropertyName == nameof(ChatConversationViewModel.Title)
-            || e.PropertyName == nameof(ChatConversationViewModel.UseWebSearch))
+            || e.PropertyName == nameof(ChatConversationViewModel.UseWebSearch)
+            || e.PropertyName == nameof(ChatConversationViewModel.ReasoningEffort))
         {
             chat.Model.UpdatedAt = DateTimeOffset.UtcNow;
             _ = _dataStore.SaveStateAsync(_state);
@@ -1204,6 +1268,11 @@ public sealed class MainViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(conversation.Model))
             {
                 conversation.Model = string.Empty;
+            }
+
+            if (conversation.ReasoningEffort is null)
+            {
+                conversation.ReasoningEffort = string.Empty;
             }
 
             conversation.Messages ??= new ObservableCollection<ChatMessage>();

@@ -125,6 +125,15 @@
                             <TextBlock Text="{Binding TypeLabel}"
                                        FontSize="10"
                                        Foreground="{DynamicResource SecondaryTextBrush}" />
+                            <TextBlock Text="Uploading..."
+                                       FontSize="10"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Margin="0,6,0,0"
+                                       Visibility="{Binding IsUploading, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <ProgressBar Height="4"
+                                         Margin="0,6,0,0"
+                                         IsIndeterminate="True"
+                                         Visibility="{Binding IsUploading, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
                     </StackPanel>
                     <Button Grid.Column="1"
@@ -502,6 +511,26 @@
                                 </Style>
                             </ComboBox.Style>
                         </ComboBox>
+                        <StackPanel Margin="0,10,0,0"
+                                    Visibility="{Binding SelectedChat.ReasoningOptions, Converter={StaticResource CountToVisibilityConverter}}">
+                            <TextBlock Text="Reasoning" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                            <ComboBox Width="180"
+                                      Margin="0,6,0,0"
+                                      HorizontalAlignment="Left"
+                                      HorizontalContentAlignment="Left"
+                                      ItemsSource="{Binding SelectedChat.ReasoningOptions}"
+                                      SelectedItem="{Binding SelectedChat.ReasoningEffort, UpdateSourceTrigger=PropertyChanged}">
+                                <ComboBox.Style>
+                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.Style>
+                            </ComboBox>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

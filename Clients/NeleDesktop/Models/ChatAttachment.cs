@@ -1,10 +1,16 @@
 using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace NeleDesktop.Models;
 
-public sealed class ChatAttachment
+public sealed class ChatAttachment : INotifyPropertyChanged
 {
+    private bool _isUploading;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Type { get; set; } = "text";
     public string FileName { get; set; } = string.Empty;
@@ -27,7 +33,18 @@ public sealed class ChatAttachment
     public bool HasPreview => IsImage && !string.IsNullOrWhiteSpace(SourcePath) && System.IO.File.Exists(SourcePath);
 
     [JsonIgnore]
-    public bool IsUploading { get; set; }
+    public bool IsUploading
+    {
+        get => _isUploading;
+        set
+        {
+            if (_isUploading != value)
+            {
+                _isUploading = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     [JsonIgnore]
     public string TypeLabel
@@ -42,5 +59,10 @@ public sealed class ChatAttachment
 
             return extension.TrimStart('.').ToUpperInvariant();
         }
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

@@ -300,7 +300,35 @@ public sealed class UiBehaviorTests
             var rootElement = window.Content as DependencyObject;
             Assert.IsNotNull(rootElement, "Root element not found.");
 
-            var comboBox = UiTestHelpers.FindVisualChild<ComboBox>(rootElement);
+            ComboBox? comboBox = null;
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(rootElement);
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                var children = VisualTreeHelper.GetChildrenCount(current);
+                for (var i = 0; i < children; i++)
+                {
+                    var child = VisualTreeHelper.GetChild(current, i);
+                    if (child is ComboBox candidate)
+                    {
+                        var binding = BindingOperations.GetBindingExpression(candidate, ItemsControl.ItemsSourceProperty);
+                        if (string.Equals(binding?.ParentBinding?.Path?.Path, "AvailableModels", StringComparison.Ordinal))
+                        {
+                            comboBox = candidate;
+                            break;
+                        }
+                    }
+
+                    queue.Enqueue(child);
+                }
+
+                if (comboBox is not null)
+                {
+                    break;
+                }
+            }
+
             Assert.IsNotNull(comboBox, "Model ComboBox not found.");
             var titleText = UiTestHelpers.FindVisualChild<TextBlock>(rootElement, tb => Math.Abs(tb.FontSize - 18) < 0.1);
             Assert.IsNotNull(titleText, "Chat title text not found.");
@@ -313,6 +341,61 @@ public sealed class UiBehaviorTests
             Assert.IsTrue(titleBounds.Bottom <= comboBounds.Top + 2,
                 "Title text should be above the model dropdown.");
             Assert.AreEqual(HorizontalAlignment.Left, comboBox.HorizontalAlignment, "Model dropdown should be left aligned.");
+        });
+    }
+
+    [TestMethod]
+    public void ChatHeader_ReasoningDropdownBindsToSelectedChat()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            var viewModel = new MainViewModel();
+            var conversation = new ChatConversation { Model = "gpt-5" };
+            viewModel.SelectedChat = new ChatConversationViewModel(conversation);
+            window.DataContext = viewModel;
+            window.ApplyTemplate();
+            if (window.Content is FrameworkElement root)
+            {
+                root.Measure(new Size(800, 600));
+                root.Arrange(new Rect(0, 0, 800, 600));
+                root.UpdateLayout();
+            }
+
+            ComboBox? reasoningCombo = null;
+            var rootElement = window.Content as DependencyObject;
+            Assert.IsNotNull(rootElement, "Root element not found.");
+
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(rootElement);
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                var children = VisualTreeHelper.GetChildrenCount(current);
+                for (var i = 0; i < children; i++)
+                {
+                    var child = VisualTreeHelper.GetChild(current, i);
+                    if (child is ComboBox candidate)
+                    {
+                        var binding = BindingOperations.GetBindingExpression(candidate, ItemsControl.ItemsSourceProperty);
+                        if (string.Equals(binding?.ParentBinding?.Path?.Path, "SelectedChat.ReasoningOptions", StringComparison.Ordinal))
+                        {
+                            reasoningCombo = candidate;
+                            break;
+                        }
+                    }
+
+                    queue.Enqueue(child);
+                }
+
+                if (reasoningCombo is not null)
+                {
+                    break;
+                }
+            }
+
+            Assert.IsNotNull(reasoningCombo, "Reasoning dropdown not found.");
         });
     }
 
@@ -662,6 +745,25 @@ public sealed class UiBehaviorTests
 
             var panel = pendingPanel.ItemsPanel.LoadContent() as Panel;
             Assert.IsInstanceOfType(panel, typeof(WrapPanel), "Pending attachments panel should use a WrapPanel.");
+        });
+    }
+
+    [TestMethod]
+    public void PendingAttachmentTemplate_ShowsProgressBar()
+    {
+        UiTestHelpers.RunOnSta(() =>
+        {
+            UiTestHelpers.ApplyTheme(UiTestHelpers.LoadThemeDictionary("Dark.xaml"));
+            var window = new MainWindow();
+            window.ApplyTemplate();
+
+            var template = window.Resources["PendingAttachmentTemplate"] as DataTemplate;
+            Assert.IsNotNull(template, "PendingAttachmentTemplate not found.");
+            var content = template!.LoadContent() as FrameworkElement;
+            Assert.IsNotNull(content, "Pending attachment template content not created.");
+
+            var progress = UiTestHelpers.FindVisualChild<ProgressBar>(content);
+            Assert.IsNotNull(progress, "Progress bar not found in pending attachment template.");
         });
     }
 

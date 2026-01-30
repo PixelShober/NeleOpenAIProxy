@@ -100,7 +100,8 @@ public sealed class NeleApiClient
         CancellationToken cancellationToken,
         int? maxTokens = null,
         double? temperature = null,
-        WebSearchOptions? webSearch = null)
+        WebSearchOptions? webSearch = null,
+        string? reasoningEffort = null)
     {
         var payload = new JsonObject
         {
@@ -147,6 +148,14 @@ public sealed class NeleApiClient
             };
 
             payload["web_search"] = webSearchPayload;
+        }
+
+        if (!string.IsNullOrWhiteSpace(reasoningEffort))
+        {
+            payload["modelConfiguration"] = new JsonObject
+            {
+                ["reasoning_effort"] = reasoningEffort
+            };
         }
 
         var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(baseUrl, "chat-completion-sync"))
