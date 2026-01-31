@@ -77,6 +77,7 @@ internal static class UiTestHelpers
         resources["MarkdownToFlowDocumentConverter"] = new NeleDesktop.Converters.MarkdownToFlowDocumentConverter();
         resources["BubbleWidthConverter"] = new NeleDesktop.Converters.BubbleWidthConverter();
         resources["CountToVisibilityConverter"] = new NeleDesktop.Converters.CountToVisibilityConverter();
+        resources["ThumbnailImageConverter"] = new NeleDesktop.Converters.ThumbnailImageConverter();
     }
 
     public static T? FindVisualChild<T>(DependencyObject root, Func<T, bool>? predicate = null)
