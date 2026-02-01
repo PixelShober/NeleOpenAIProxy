@@ -79,6 +79,7 @@ Beispiel:
     "ApiKey": "YOUR_NELE_API_KEY",
     "DefaultChatModel": "google-claude-4.5-sonnet",
     "ForceStream": false,
+    "DefaultDocumentCollectionId": "",
     "ModelConfiguration": {
       "ReasoningEffort": "high"
     }
@@ -258,4 +259,5 @@ Beispielausgabe:
 - Wenn `model` fehlt, wird `Nele:DefaultChatModel` genutzt.
 - `Nele:ForceStream=true` erzwingt Streaming-Antworten fuer `/v1/chat/completions` (SSE), auch wenn der Client kein `stream: true` sendet.
 - `Nele:ModelConfiguration:ReasoningEffort` steuert den Default fuer `modelConfiguration.reasoning_effort` (kann per Request ueberschrieben werden).
+- `Nele:DefaultDocumentCollectionId` setzt eine Standard-Collection fuer `/v1/chat/completions`, sofern kein `documentCollectionId` im Request gesetzt ist und kein `web_search` verwendet wird.
 - Die API liefert keine offiziellen Kontext-Fenster-Groessen pro Modell.

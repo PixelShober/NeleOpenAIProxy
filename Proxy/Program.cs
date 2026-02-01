@@ -610,6 +610,12 @@ static async Task ProxyRequestAsync(HttpContext context, IHttpClientFactory http
 {
     var upstreamPathWithQuery = upstreamPath + context.Request.QueryString.Value;
     using var requestMessage = new HttpRequestMessage(method, upstreamPathWithQuery);
+    logger.LogInformation(
+        "Knowledge proxy request. Method={Method} Path={Path} ContentType={ContentType} ContentLength={ContentLength}",
+        method.Method,
+        upstreamPathWithQuery,
+        context.Request.ContentType ?? string.Empty,
+        context.Request.ContentLength ?? 0);
 
     if (method != HttpMethod.Get && method != HttpMethod.Head && method != HttpMethod.Delete)
     {
@@ -649,6 +655,10 @@ static async Task ProxyRequestAsync(HttpContext context, IHttpClientFactory http
     if (!response.IsSuccessStatusCode)
     {
         logger.LogWarning("Knowledge proxy call failed. Path={Path} Status={StatusCode} Reason={ReasonPhrase}", upstreamPathWithQuery, (int)response.StatusCode, response.ReasonPhrase);
+    }
+    else
+    {
+        logger.LogDebug("Knowledge proxy call completed. Path={Path} Status={StatusCode}", upstreamPathWithQuery, (int)response.StatusCode);
     }
 
     if (payload.Length > 0)
@@ -731,7 +741,18 @@ static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root,
     payload["model"] = model;
     CopyProperty(root, payload, "max_tokens");
     CopyProperty(root, payload, "temperature");
-    CopyProperty(root, payload, "documentCollectionId");
+    var requestCollectionId = GetStringProperty(root, "documentCollectionId");
+    var defaultCollectionId = GetDefaultDocumentCollectionId(config);
+    var hasWebSearch = root.TryGetProperty("web_search", out var webSearchValue) && webSearchValue.ValueKind != JsonValueKind.Null;
+    if (!string.IsNullOrWhiteSpace(requestCollectionId))
+    {
+        payload["documentCollectionId"] = requestCollectionId;
+    }
+    else if (!string.IsNullOrWhiteSpace(defaultCollectionId) && !hasWebSearch)
+    {
+        payload["documentCollectionId"] = defaultCollectionId;
+        logger.LogInformation("Using default documentCollectionId from config.");
+    }
     CopyProperty(root, payload, "web_search");
     CopyProperty(root, payload, "tool_choice");
     CopyProperty(root, payload, "tools");
@@ -1142,6 +1163,12 @@ static string GetDefaultChatModel(IConfiguration config)
 {
     var model = config["Nele:DefaultChatModel"];
     return string.IsNullOrWhiteSpace(model) ? "google-claude-4.5-sonnet" : model.Trim();
+}
+
+static string GetDefaultDocumentCollectionId(IConfiguration config)
+{
+    var collectionId = config["Nele:DefaultDocumentCollectionId"];
+    return string.IsNullOrWhiteSpace(collectionId) ? string.Empty : collectionId.Trim();
 }
 
 static string GetDefaultReasoningEffort(IConfiguration config)
