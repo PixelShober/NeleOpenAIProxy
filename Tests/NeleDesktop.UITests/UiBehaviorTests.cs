@@ -300,47 +300,20 @@ public sealed class UiBehaviorTests
             var rootElement = window.Content as DependencyObject;
             Assert.IsNotNull(rootElement, "Root element not found.");
 
-            ComboBox? comboBox = null;
-            var queue = new Queue<DependencyObject>();
-            queue.Enqueue(rootElement);
-            while (queue.Count > 0)
-            {
-                var current = queue.Dequeue();
-                var children = VisualTreeHelper.GetChildrenCount(current);
-                for (var i = 0; i < children; i++)
-                {
-                    var child = VisualTreeHelper.GetChild(current, i);
-                    if (child is ComboBox candidate)
-                    {
-                        var binding = BindingOperations.GetBindingExpression(candidate, ItemsControl.ItemsSourceProperty);
-                        if (string.Equals(binding?.ParentBinding?.Path?.Path, "AvailableModels", StringComparison.Ordinal))
-                        {
-                            comboBox = candidate;
-                            break;
-                        }
-                    }
-
-                    queue.Enqueue(child);
-                }
-
-                if (comboBox is not null)
-                {
-                    break;
-                }
-            }
-
-            Assert.IsNotNull(comboBox, "Model ComboBox not found.");
+            var selectorButton = window.FindName("ModelSelectorButton") as Button
+                ?? UiTestHelpers.FindVisualChild<Button>(rootElement, button => string.Equals(button.Name, "ModelSelectorButton", StringComparison.Ordinal));
+            Assert.IsNotNull(selectorButton, "Model selector button not found.");
             var titleText = UiTestHelpers.FindVisualChild<TextBlock>(rootElement, tb => Math.Abs(tb.FontSize - 18) < 0.1);
             Assert.IsNotNull(titleText, "Chat title text not found.");
 
             var titleBounds = titleText.TransformToAncestor((Visual)rootElement)
                 .TransformBounds(new Rect(0, 0, titleText.ActualWidth, titleText.ActualHeight));
-            var comboBounds = comboBox.TransformToAncestor((Visual)rootElement)
-                .TransformBounds(new Rect(0, 0, comboBox.ActualWidth, comboBox.ActualHeight));
+            var selectorBounds = selectorButton.TransformToAncestor((Visual)rootElement)
+                .TransformBounds(new Rect(0, 0, selectorButton.ActualWidth, selectorButton.ActualHeight));
 
-            Assert.IsTrue(titleBounds.Bottom <= comboBounds.Top + 2,
-                "Title text should be above the model dropdown.");
-            Assert.AreEqual(HorizontalAlignment.Left, comboBox.HorizontalAlignment, "Model dropdown should be left aligned.");
+            Assert.IsTrue(titleBounds.Bottom <= selectorBounds.Top + 2,
+                "Title text should be above the model selector.");
+            Assert.AreEqual(HorizontalAlignment.Left, selectorButton.HorizontalAlignment, "Model selector should be left aligned.");
         });
     }
 
@@ -354,6 +327,8 @@ public sealed class UiBehaviorTests
             var viewModel = new MainViewModel();
             var conversation = new ChatConversation { Model = "gpt-5" };
             viewModel.SelectedChat = new ChatConversationViewModel(conversation);
+            viewModel.IsModelSelectorOpen = true;
+            viewModel.SelectedChat.IsReasoningOptionsOpen = true;
             window.DataContext = viewModel;
             window.ApplyTemplate();
             if (window.Content is FrameworkElement root)
@@ -362,40 +337,28 @@ public sealed class UiBehaviorTests
                 root.Arrange(new Rect(0, 0, 800, 600));
                 root.UpdateLayout();
             }
+            UiTestHelpers.DoEvents();
 
-            ComboBox? reasoningCombo = null;
             var rootElement = window.Content as DependencyObject;
             Assert.IsNotNull(rootElement, "Root element not found.");
 
-            var queue = new Queue<DependencyObject>();
-            queue.Enqueue(rootElement);
-            while (queue.Count > 0)
+            var selectorButton = window.FindName("ModelSelectorButton") as Button
+                ?? UiTestHelpers.FindVisualChild<Button>(rootElement, button => string.Equals(button.Name, "ModelSelectorButton", StringComparison.Ordinal));
+            Assert.IsNotNull(selectorButton, "Model selector button not found.");
+
+            var popup = UiTestHelpers.FindVisualChild<Popup>(rootElement, candidate => ReferenceEquals(candidate.PlacementTarget, selectorButton));
+            Assert.IsNotNull(popup, "Model selector popup not found.");
+
+            var popupRoot = popup.Child as DependencyObject;
+            Assert.IsNotNull(popupRoot, "Model selector popup content not found.");
+
+            var reasoningList = UiTestHelpers.FindVisualChild<ItemsControl>(popupRoot, control =>
             {
-                var current = queue.Dequeue();
-                var children = VisualTreeHelper.GetChildrenCount(current);
-                for (var i = 0; i < children; i++)
-                {
-                    var child = VisualTreeHelper.GetChild(current, i);
-                    if (child is ComboBox candidate)
-                    {
-                        var binding = BindingOperations.GetBindingExpression(candidate, ItemsControl.ItemsSourceProperty);
-                        if (string.Equals(binding?.ParentBinding?.Path?.Path, "SelectedChat.ReasoningOptions", StringComparison.Ordinal))
-                        {
-                            reasoningCombo = candidate;
-                            break;
-                        }
-                    }
+                var binding = BindingOperations.GetBindingExpression(control, ItemsControl.ItemsSourceProperty);
+                return string.Equals(binding?.ParentBinding?.Path?.Path, "SelectedChat.ReasoningOptions", StringComparison.Ordinal);
+            });
 
-                    queue.Enqueue(child);
-                }
-
-                if (reasoningCombo is not null)
-                {
-                    break;
-                }
-            }
-
-            Assert.IsNotNull(reasoningCombo, "Reasoning dropdown not found.");
+            Assert.IsNotNull(reasoningList, "Reasoning dropdown not found.");
         });
     }
 

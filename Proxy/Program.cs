@@ -755,7 +755,11 @@ static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root,
     }
     CopyProperty(root, payload, "web_search");
     CopyProperty(root, payload, "tool_choice");
-    CopyProperty(root, payload, "tools");
+    var normalizedTools = NormalizeTools(root, config, logger);
+    if (normalizedTools is not null)
+    {
+        payload["tools"] = normalizedTools;
+    }
 
     var modelConfiguration = BuildModelConfiguration(root, config);
     if (modelConfiguration is not null)
@@ -775,6 +779,56 @@ static async Task<JsonObject?> BuildChatCompletionPayloadAsync(JsonElement root,
     }
 
     return payload;
+}
+
+static JsonNode? NormalizeTools(JsonElement root, IConfiguration config, ILogger logger)
+{
+    if (!root.TryGetProperty("tools", out var toolsValue))
+    {
+        return null;
+    }
+
+    if (toolsValue.ValueKind != JsonValueKind.Array)
+    {
+        return JsonNode.Parse(toolsValue.GetRawText());
+    }
+
+    var maxDescriptionLength = GetToolDescriptionMaxLength(config);
+    var trimmedCount = 0;
+    var tools = new JsonArray();
+    foreach (var tool in toolsValue.EnumerateArray())
+    {
+        var toolNode = JsonNode.Parse(tool.GetRawText());
+        if (toolNode is not JsonObject toolObject)
+        {
+            if (toolNode is not null)
+            {
+                tools.Add(toolNode);
+            }
+            continue;
+        }
+
+        if (maxDescriptionLength > 0
+            && toolObject["function"] is JsonObject functionObject
+            && functionObject["description"] is JsonValue descriptionValue)
+        {
+            var description = descriptionValue.GetValue<string>();
+            if (description.Length > maxDescriptionLength)
+            {
+                functionObject["description"] = description[..maxDescriptionLength];
+                trimmedCount++;
+            }
+        }
+
+        tools.Add(toolObject);
+    }
+
+    if (trimmedCount > 0)
+    {
+        logger.LogInformation("Trimmed {TrimmedCount} tool description(s) to {MaxLength} characters.", trimmedCount, maxDescriptionLength);
+    }
+
+    return tools;
 }
 
 static async Task<JsonArray?> NormalizeMessagesAsync(JsonElement messagesValue, HttpContext context, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger logger)
@@ -1175,6 +1229,16 @@ static string GetDefaultReasoningEffort(IConfiguration config)
 {
     var effort = config["Nele:ModelConfiguration:ReasoningEffort"];
     return string.IsNullOrWhiteSpace(effort) ? string.Empty : effort.Trim();
+}
+
+static int GetToolDescriptionMaxLength(IConfiguration config)
+{
+    if (int.TryParse(config["Nele:ToolDescriptionMaxLength"], out var maxLength) && maxLength > 0)
+    {
+        return Math.Min(maxLength, 1000);
+    }
+
+    return 1000;
 }
 
 static bool IsStreamingForced(IConfiguration config)

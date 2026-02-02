@@ -495,42 +495,66 @@
                     </Border.Style>
                     <StackPanel>
                         <TextBlock Text="{Binding SelectedChat.Title}" FontSize="18" FontWeight="SemiBold" />
-                        <ComboBox Width="240"
-                                  Margin="0,10,0,0"
-                                  HorizontalAlignment="Left"
-                                  HorizontalContentAlignment="Left"
-                                  ItemsSource="{Binding AvailableModels}"
-                                  SelectedItem="{Binding SelectedChat.SelectedModel, UpdateSourceTrigger=PropertyChanged}">
-                            <ComboBox.Style>
-                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
-                                            <Setter Property="IsEnabled" Value="False" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
+                        <Button x:Name="ModelSelectorButton"
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Left"
+                                IsEnabled="{Binding IsApiKeyAvailable}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <EventSetter Event="Click" Handler="ModelSelectorButton_Click" />
                                 </Style>
-                            </ComboBox.Style>
-                        </ComboBox>
-                        <StackPanel Margin="0,10,0,0"
-                                    Visibility="{Binding SelectedChat.ReasoningOptions, Converter={StaticResource CountToVisibilityConverter}}">
-                            <TextBlock Text="Reasoning" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
-                            <ComboBox Width="180"
-                                      Margin="0,6,0,0"
-                                      HorizontalAlignment="Left"
-                                      HorizontalContentAlignment="Left"
-                                      ItemsSource="{Binding SelectedChat.ReasoningOptions}"
-                                      SelectedItem="{Binding SelectedChat.ReasoningEffort, UpdateSourceTrigger=PropertyChanged}">
-                                <ComboBox.Style>
-                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsApiKeyMissing}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBox.Style>
-                            </ComboBox>
-                        </StackPanel>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding SelectedChat.SelectedModel}" />
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE70D;" Margin="6,0,0,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+                            </StackPanel>
+                        </Button>
+                        <Popup IsOpen="{Binding IsModelSelectorOpen}"
+                               Placement="Bottom"
+                               PlacementTarget="{Binding ElementName=ModelSelectorButton}"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               StaysOpen="False">
+                            <Border Background="{DynamicResource PanelBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="8"
+                                    MinWidth="240">
+                                <StackPanel>
+                                    <ItemsControl ItemsSource="{Binding AvailableModels}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Style="{StaticResource SecondaryButtonStyle}"
+                                                        HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Left"
+                                                        Margin="0,0,0,6"
+                                                        Command="{Binding DataContext.SelectModelCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}">
+                                                    <TextBlock Text="{Binding}" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Separator Margin="0,4,0,4"
+                                               Visibility="{Binding SelectedChat.IsReasoningOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <ItemsControl ItemsSource="{Binding SelectedChat.ReasoningOptions}"
+                                                  Visibility="{Binding SelectedChat.IsReasoningOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Style="{StaticResource SecondaryButtonStyle}"
+                                                        HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Left"
+                                                        Command="{Binding DataContext.SelectReasoningCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}">
+                                                    <TextBlock Text="{Binding}" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                     </StackPanel>
                 </Border>
 

@@ -80,12 +80,16 @@ Beispiel:
     "DefaultChatModel": "google-claude-4.5-sonnet",
     "ForceStream": false,
     "DefaultDocumentCollectionId": "",
+    "ToolDescriptionMaxLength": 1000,
     "ModelConfiguration": {
       "ReasoningEffort": "high"
     }
   }
 }
 ```
+
+Hinweis:
+- `ToolDescriptionMaxLength` begrenzt `tools[].function.description` (Werte > 1000 werden auf 1000 gekappt).
 
 ## Start
 ```powershell
