@@ -13,11 +13,62 @@ Minimaler C#-Proxy, der OpenAI-kompatible Endpunkte auf die Nele.AI API ueberset
   - `POST /v1/responses` (sync)
   - `POST /v1/audio/transcriptions`
   - `POST /v1/images/generations`
+- Knowledge (Nele-Payload 1:1, fuer Agents/n8n):
+  - `GET /v1/knowledge/models`
+  - `GET /v1/knowledge/collections`
+  - `POST /v1/knowledge/collections`
+  - `GET /v1/knowledge/collections/{id}`
+  - `PUT /v1/knowledge/collections/{id}`
+  - `DELETE /v1/knowledge/collections/{id}`
+  - `POST /v1/knowledge/collections/{id}/items`
+  - `POST /v1/knowledge/collections/{id}/from-url`
+  - `PUT /v1/knowledge/collections/{id}/embed`
+  - `POST /v1/knowledge/collections/{id}/search`
+  - `GET /v1/knowledge/items/{item}`
+  - `DELETE /v1/knowledge/items/{item}`
+  - `PUT /v1/knowledge/items/{item}/embed`
 - Optionaler Default fuer Chat-Modelle via Config
 - Konfiguration wird immer aus dem Ordner der EXE gelesen
 
+## Projektstruktur
+- `Proxy/` enthaelt den Web-Proxy
+- `Clients/NeleDesktop/` enthaelt die WPF-Desktop-App
+
+## Desktop App (Chat Modus)
+Eine schlanke WPF-App (net9.0) fuer den direkten Zugriff auf Nele AI.
+
+Funktionen:
+- Kompaktes Widget-Fenster mit globalem Hotkey (Default: `Ctrl+Alt+Space`)
+- Dark/Light Mode Toggle oben rechts
+- Chat-Verlauf mit mehreren Konversationen
+- Ordner fuer Chats (Drag & Drop oder Rechtsklick -> Move to folder)
+- Settings-Fenster fuer API-Key, Base-URL, Model-Liste und Hotkey
+  - Startet automatisch, wenn noch kein API-Key gesetzt ist
+
+### Start (Desktop App)
+```powershell
+dotnet build .\NeleOpenAIProxy.sln
+dotnet run --project .\Clients\NeleDesktop\NeleDesktop.csproj
+```
+
+### Desktop-Konfiguration
+Die App speichert ihre Daten lokal als JSON:
+- `%AppData%\NeleAIProxy\settings.json`
+- `%AppData%\NeleAIProxy\conversations.json`
+
+Beispiel `settings.json`:
+```json
+{
+  "apiKey": "YOUR_NELE_API_KEY",
+  "baseUrl": "https://api.aieva.io/api:v1/",
+  "selectedModel": "google-claude-4.5-sonnet",
+  "darkMode": true,
+  "hotkey": "Ctrl+Alt+Space"
+}
+```
+
 ## Konfiguration
-Lege `appsettings.Local.json` im gleichen Ordner wie die EXE ab (oder nutze `appsettings.json`).
+Lege `appsettings.Local.json` im gleichen Ordner wie die EXE ab (oder nutze `appsettings.json`). Im Repo liegen die Proxy-Configs unter `Proxy/`.
 
 Beispiel:
 ```json
@@ -26,14 +77,23 @@ Beispiel:
   "Nele": {
     "BaseUrl": "https://api.aieva.io/api:v1/",
     "ApiKey": "YOUR_NELE_API_KEY",
-    "DefaultChatModel": "google-claude-4.5-sonnet"
+    "DefaultChatModel": "google-claude-4.5-sonnet",
+    "ForceStream": false,
+    "DefaultDocumentCollectionId": "",
+    "ToolDescriptionMaxLength": 1000,
+    "ModelConfiguration": {
+      "ReasoningEffort": "high"
+    }
   }
 }
 ```
 
+Hinweis:
+- `ToolDescriptionMaxLength` begrenzt `tools[].function.description` (Werte > 1000 werden auf 1000 gekappt).
+
 ## Start
 ```powershell
-cd .\bin\Release\net9.0\win-x64\publish
+cd .\Proxy\bin\Release\net9.0\win-x64\publish
 .\NeleOpenAIProxy.exe
 ```
 
@@ -201,4 +261,7 @@ Beispielausgabe:
 
 ## Hinweise
 - Wenn `model` fehlt, wird `Nele:DefaultChatModel` genutzt.
+- `Nele:ForceStream=true` erzwingt Streaming-Antworten fuer `/v1/chat/completions` (SSE), auch wenn der Client kein `stream: true` sendet.
+- `Nele:ModelConfiguration:ReasoningEffort` steuert den Default fuer `modelConfiguration.reasoning_effort` (kann per Request ueberschrieben werden).
+- `Nele:DefaultDocumentCollectionId` setzt eine Standard-Collection fuer `/v1/chat/completions`, sofern kein `documentCollectionId` im Request gesetzt ist und kein `web_search` verwendet wird.
 - Die API liefert keine offiziellen Kontext-Fenster-Groessen pro Modell.

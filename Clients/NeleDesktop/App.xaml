@@ -1,0 +1,19 @@
+﻿<Application x:Class="NeleDesktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:NeleDesktop.Converters">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Dark.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <converters:MessageAlignmentConverter x:Key="MessageAlignmentConverter" />
+            <converters:MessageBubbleBrushConverter x:Key="MessageBubbleBrushConverter" />
+            <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocumentConverter" />
+            <converters:BubbleWidthConverter x:Key="BubbleWidthConverter" />
+            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
+            <converters:ThumbnailImageConverter x:Key="ThumbnailImageConverter" />
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

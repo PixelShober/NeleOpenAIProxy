@@ -1,0 +1,24 @@
+namespace NeleDesktop.Models;
+
+public sealed class AppSettings
+{
+    public string ApiKey { get; set; } = string.Empty;
+    public string BaseUrl { get; set; } = "https://api.aieva.io/api:v1/";
+    public string SelectedModel { get; set; } = "google-claude-4.5-sonnet";
+    public string TemporaryChatModel { get; set; } = string.Empty;
+    public bool DarkMode { get; set; } = true;
+    public string Hotkey { get; set; } = "Ctrl+Alt+Space";
+    public string TemporaryHotkey { get; set; } = "Ctrl+Alt+T";
+    public bool WebSearchEnabled { get; set; }
+    public string WebSearchLanguage { get; set; } = "de";
+    public string WebSearchCountry { get; set; } = "ALL";
+    public int WebSearchResults { get; set; } = 5;
+    public int WebSearchQueriesMin { get; set; } = 1;
+    public int WebSearchQueriesMax { get; set; } = 1;
+    public string TranscriptionModel { get; set; } = "azure-fast-transcription";
+    public bool AutoStartEnabled { get; set; }
+    public double? WindowLeft { get; set; }
+    public double? WindowTop { get; set; }
+    public double? WindowWidth { get; set; }
+    public double? WindowHeight { get; set; }
+}
