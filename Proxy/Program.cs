@@ -179,6 +179,11 @@ app.MapPost("/v1/chat/completions", async (HttpContext context, IHttpClientFacto
     using (requestDoc)
     {
         var root = requestDoc.RootElement;
+        var roleSummary = GetMessageRoleSummary(root);
+        if (!string.IsNullOrWhiteSpace(roleSummary))
+        {
+            logger.LogInformation("Incoming chat roles: {Roles}", roleSummary);
+        }
         var streamRequested = root.TryGetProperty("stream", out var streamValue) && streamValue.ValueKind == JsonValueKind.True;
         var forceStream = IsStreamingForced(config);
         var isStream = streamRequested || forceStream;
@@ -864,11 +869,15 @@ static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsy
     }
 
     var normalized = new JsonObject();
-    CopyProperty(message, normalized, "role");
+    var role = NormalizeRole(GetStringProperty(message, "role"), logger);
+    if (!string.IsNullOrWhiteSpace(role))
+    {
+        normalized["role"] = role;
+    }
     CopyProperty(message, normalized, "name");
 
     var attachments = new JsonArray();
-    var role = GetStringProperty(message, "role");
+    var messageRole = GetStringProperty(message, "role");
     if (message.TryGetProperty("attachments", out var attachmentsValue) && attachmentsValue.ValueKind == JsonValueKind.Array)
     {
         foreach (var attachment in attachmentsValue.EnumerateArray())
@@ -940,7 +949,7 @@ static async Task<(bool Success, JsonObject? Normalized)> TryNormalizeMessageAsy
     if (attachments.Count > 0)
     {
         normalized["attachments"] = attachments;
-        logger.LogInformation("Added attachments to message. Role={Role} Attachments={AttachmentCount}", role, attachments.Count);
+        logger.LogInformation("Added attachments to message. Role={Role} Attachments={AttachmentCount}", messageRole, attachments.Count);
     }
 
     CopyProperty(message, normalized, "results");
@@ -1213,6 +1222,53 @@ static string GetStringProperty(JsonElement source, string propertyName)
     return value.ValueKind == JsonValueKind.String ? value.GetString() ?? string.Empty : value.ToString();
 }
 
+static string GetMessageRoleSummary(JsonElement root)
+{
+    if (!root.TryGetProperty("messages", out var messagesValue) || messagesValue.ValueKind != JsonValueKind.Array)
+    {
+        return string.Empty;
+    }
+
+    var builder = new StringBuilder();
+    foreach (var message in messagesValue.EnumerateArray())
+    {
+        if (builder.Length > 0)
+        {
+            builder.Append(", ");
+        }
+
+        builder.Append(GetStringProperty(message, "role"));
+    }
+
+    return builder.ToString();
+}
+
+static string NormalizeRole(string role, ILogger? logger)
+{
+    if (string.IsNullOrWhiteSpace(role))
+    {
+        return role;
+    }
+
+    var mappedRole = role;
+    if (string.Equals(role, "developer", StringComparison.OrdinalIgnoreCase))
+    {
+        mappedRole = "system";
+    }
+    else if (string.Equals(role, "tool", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, "function", StringComparison.OrdinalIgnoreCase))
+    {
+        mappedRole = "assistant";
+    }
+
+    if (logger is not null && !string.Equals(role, mappedRole, StringComparison.Ordinal))
+    {
+        logger.LogInformation("Mapped role {OriginalRole} to {MappedRole}.", role, mappedRole);
+    }
+
+    return mappedRole;
+}
+
 static string GetDefaultChatModel(IConfiguration config)
 {
     var model = config["Nele:DefaultChatModel"];
@@ -1433,7 +1489,11 @@ static bool TryNormalizeMessage(JsonElement message, out JsonObject normalized)
         return false;
     }
 
-    CopyProperty(message, normalized, "role");
+    var role = NormalizeRole(GetStringProperty(message, "role"), null);
+    if (!string.IsNullOrWhiteSpace(role))
+    {
+        normalized["role"] = role;
+    }
     CopyProperty(message, normalized, "name");
 
     if (message.TryGetProperty("content", out var contentValue))
